@@ -1,0 +1,38 @@
+/* This creates a skinny side bar fixed to the left of the page */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 5rem;
+  padding: 2rem 1rem;
+  background-color: #f8f9fa;
+  z-index: 1050;
+  transition: width 0.1s ease-in-out;
+}
+
+/* when the user hovers on the sidebar, expand it */
+.sidebar:hover {
+  width: 25rem;
+}
+
+.sidebar-content-div {
+  display: flex;
+  justify-content: left;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+}
+
+.sidebar:hover .sidebar-content-div{
+  transition: all 0.1s ease-in-out;
+  opacity: 1;
+}
+
+/* position the content relative to the collapsed sidebar */
+.content {
+  margin-left: 7rem;
+  margin-right: 2rem;
+  padding: 2rem 1rem;
+}

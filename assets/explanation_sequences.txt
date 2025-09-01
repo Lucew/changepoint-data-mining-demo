@@ -1,0 +1,10 @@
+This tool computes the characteristic eigensequences from a set of sequences and visualized their participation over time. I can be use to find points in time where a characteristic behavior changes. The color codes the participation of the three main characteristic sequences. A change in color therefore hints at changing shape of the sequences.
+
+Possible interactions:
+- Select the order of signals in the heatmap by dragging and dropping in the next tile
+- Select the signals to be plotted in the heatmap by dragging and dropping in the next tile
+- Select Sequences by clicking into the heatmap
+- Select signals and time windows by putting shapes into the heatmap
+    - These shapes will then create new tiles that plot the selected signals in the specified time window
+    - The tile can be navigated to by pressing their corresponding selection number on the keyboard
+- Navigate the page by using keyboard numbers [0] will bring you back to the top

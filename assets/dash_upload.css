@@ -1,0 +1,17 @@
+/* assets/style.css */
+.upload-box {
+  border: 2px dashed #ced4da;
+  border-radius: 15px;
+  padding: 40px;
+  text-align: center;
+  background-color: #f8f9fa;
+  transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+  cursor: pointer;
+  max-width: 25rem;
+  overflow: auto;
+}
+
+.upload-box:hover {
+  background-color: #e9ecef;
+  border-color: #adb5bd;
+}
