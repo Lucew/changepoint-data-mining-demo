@@ -333,9 +333,9 @@ def open_delete_modal(n_clicks):
     if not n_clicks:
         raise dash.exceptions.PreventUpdate
 
-    size_bytes = utl.folder_size_bytes(DELETE_ROOT)
+    size_bytes = utl.folder_size_bytes(DATA_FOLDER)
     size_text = utl.format_bytes(size_bytes)
-    line = f"This will permanently delete approximately {size_text} from {DELETE_ROOT}."
+    line = f"This will permanently delete approximately {size_text} from {DATA_FOLDER}."
 
     # open + reset password & inline feedback + show size
     return True, True, "", "", size_bytes, line
@@ -430,7 +430,7 @@ def confirm_delete(n_click_confirm, n_submit, password_value, bytes_planned):
             dash.no_update,  # no redirect
         )
 
-    removed = utl.delete_all_files_in_root(DELETE_ROOT)
+    removed = utl.delete_all_files_in_root(DATA_FOLDER)
 
     # clear any caches your app uses (safe no-op if missing)
     try:
@@ -438,7 +438,7 @@ def confirm_delete(n_click_confirm, n_submit, password_value, bytes_planned):
     except Exception as e:
         logger.error(f"Cache clear failed: {e}")
 
-    logger.info(f"[Delete-All] Removed {removed} ({planned_bytes}) entries from {DELETE_ROOT} at {datetime.datetime.now(datetime.UTC).isoformat()}Z.")
+    logger.info(f"[Delete-All] Removed {removed} ({planned_bytes}) entries from {DATA_FOLDER} at {datetime.datetime.now(datetime.UTC).isoformat()}Z.")
 
     # success: close modal, unblur, reset stores, show toast
     return (
@@ -449,7 +449,7 @@ def confirm_delete(n_click_confirm, n_submit, password_value, bytes_planned):
         True,
         "Deletion complete",
         "success",
-        f"Removed {removed} item(s) ({planned_bytes}) from {DELETE_ROOT}.",
+        f"Removed {removed} item(s) ({planned_bytes}) from {DATA_FOLDER}.",
         "",     # clear inline error
         None,  # reset upload data field
         None,  # reset upload data field
