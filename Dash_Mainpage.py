@@ -6,6 +6,8 @@ import base64
 import uuid
 import shutil
 import logging
+import datetime
+import hashlib
 
 import dash
 import plotly
@@ -13,7 +15,7 @@ from dash import html, dcc, Output, Input, State
 import dash_bootstrap_components as dbc
 import pandas as pd
 
-import util.load_data as uld
+import util.load_data as utl
 from GLOBALS import *
 
 
@@ -99,13 +101,92 @@ side_bar_content = dbc.Container([
 ], style={"maxWidth": "25rem"}, fluid=True)
 
 # set the final layout
-app.layout = html.Div([
-    dcc.Location(id="url"),
-    html.Div(children=[html.Div(html.H1(id="sidebar-symbol")),
-                       html.Div(side_bar_content, className='sidebar-content-div')],
-             className="sidebar",),
-    dash.page_container],
-    id="overall-page-container",)
+app.layout = html.Div(
+    [
+        dcc.Location(id="url"),
+
+        # store flags + messages
+        dcc.Store(id="delete-modal-open", data=False, storage_type="session"),
+        dcc.Store(id="delete-notice", data="", storage_type="session"),
+        dcc.Store(id="delete-size-bytes", data=0, storage_type="memory"),
+
+        # everything inside here will blur when modal opens
+        html.Div(
+            id="app-blur-target",
+            children=[
+                html.Div(
+                    children=[
+                        html.Div(html.H1(id="sidebar-symbol")),
+                        html.Div(side_bar_content, className='sidebar-content-div')
+                    ],
+                    className="sidebar",
+                ),
+                dash.page_container,
+            ],
+        ),
+
+        # Fullscreen password modal
+        # --- Password Modal (compact center) ---
+        dbc.Modal(
+            id="delete-modal",
+            is_open=False,
+            backdrop=True,  # click outside won't close it automatically; we close by callbacks
+            keyboard=True,  # Esc closes via our 'x' handler if you want to wire it too
+            centered=True,
+            size="md",  # <— small/medium dialog, not fullscreen
+            children=[
+                dbc.ModalHeader(
+                    children=[
+                        dbc.ModalTitle("Confirm full deletion"),
+                    ],
+                    close_button=True,  # close button
+                ),
+                dbc.ModalBody(
+                    [
+                        html.P(
+                            "Enter the deletion password to remove ALL files in ./tmp-data-folder.",
+                            className="mb-3"
+                        ),
+                        html.Div(id="delete-size-line", className="text-muted small mb-2"),
+                        dcc.Input(
+                            id="delete-password-input",
+                            type="password",
+                            placeholder="Password",
+                            autoComplete="off",
+                            className="form-control mb-2",  # Bootstrap styling via className
+                            n_submit=0,  # so we can capture Enter
+                        ),
+                        html.Div(
+                            id="delete-inline-feedback",
+                            className="text-danger small",
+                            style={"minHeight": "1.2rem"}
+                        ),
+                    ]
+                ),
+                dbc.ModalFooter(
+                    [
+                        dbc.Button("Cancel", id="delete-cancel-btn", className="me-2", outline=True),
+                        dbc.Button("Delete everything", id="delete-confirm-btn", color="danger"),
+                    ]
+                ),
+            ],
+        ),
+
+        # Toast notifications
+        dbc.Toast(
+            id="delete-toast",
+            header="",
+            is_open=False,
+            dismissable=True,
+            duration=4000,
+            icon="primary",
+            style={"position": "fixed", "top": 20, "right": 20, "zIndex": 1060},
+            children=""
+        ),
+    ],
+    id="overall-page-container",
+)
+
 
 
 # upload the zipfile and unpack it
@@ -154,7 +235,7 @@ def handle_zip_upload(contents: str, filename: str, session_id: str):
                 zipref.extract(member=member, path=output_folder)
 
         # clear function cache and load the data to check for any errors
-        uld.load_data.cache_clear()
+        utl.load_data.cache_clear()
         load_files(session_id, folder)
 
     except Exception as e:
@@ -174,28 +255,29 @@ def handle_zip_upload(contents: str, filename: str, session_id: str):
     Output("upload-status", "data", allow_duplicate=True),
     Output("upload-data", "contents"),
     Output("upload-data", "filename"),
+    Output("url", "pathname", allow_duplicate=True),
     Input("delete-file-button", "n_clicks"),
     State("session-id", "data"),
     prevent_initial_call=True,
 )
-def on_button_click(n: int, session_id: str):
+def delete_own_files(n: int, session_id: str):
 
     # nothing is clicked
     if n is None:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.exceptions.PreventUpdate
 
     # delete the files
     filename = os.path.join(DATA_FOLDER, session_id)
     shutil.rmtree(filename)
 
     # clear the function cache
-    uld.load_data.cache_clear()
+    utl.load_data.cache_clear()
 
     # log the deletion
     logger.info(f"Deleted files from session {session_id}.")
 
-    # reset the folder
-    return "", "",  "", None, None
+    # reset the folder (and redirect to main page)
+    return "", "",  "", None, None, "/"
 
 
 
@@ -236,26 +318,143 @@ def available_files(session_id: str, folder_name: str, filename: str, upload_sta
     return button_disabled, page_link_style, page_button_style, upload_text, sidebar_symbol
 
 
+# --- Open modal when "Delete ALL Files." is clicked ---
 @app.callback(
-    Output("overall-page-container", "children"),
+    Output("delete-modal", "is_open", allow_duplicate=True),
+    Output("delete-modal-open", "data", allow_duplicate=True),
+    Output("delete-password-input", "value"),
+    Output("delete-inline-feedback", "children"),
+    Output("delete-size-bytes", "data"),
+    Output("delete-size-line", "children"),
     Input("delete-all-file-button", "n_clicks"),
-    State("overall-page-container", "children"),
     prevent_initial_call=True,
 )
-def initialize_delete_everything(has_clicked, all_page_content: list):
-    # https://stackoverflow.com/a/52647370
-    # create the password mask
-    pwd_mask = html.Div(
-        html.Div(
-            dbc.Input(id="delete-password-input", placeholder="Deletion Password", type="password"),
-            style={"display": "flex", "justify-content": "center", "align-items": "center",
-                   "text-align": "center", "width": "30%", "min-height": "100vh"}, ),
-        style={"height": "100%", "width": "100%", "position": "fixed !important",
-               "z-index": "50000 !important", "left": "0 !important", "top": "0 !important",
-               "background-color": "rgba(0,0,0,0.8)", "overflow-x": "hidden", "transition": "0.5s"})
-    all_page_content.append(pwd_mask)
-    return all_page_content
+def open_delete_modal(n_clicks):
+    if not n_clicks:
+        raise dash.exceptions.PreventUpdate
 
+    size_bytes = utl.folder_size_bytes(DELETE_ROOT)
+    size_text = utl.format_bytes(size_bytes)
+    line = f"This will permanently delete approximately {size_text} from {DELETE_ROOT}."
+
+    # open + reset password & inline feedback + show size
+    return True, True, "", "", size_bytes, line
+
+
+# Close on Cancel and the header "x"
+@app.callback(
+    Output("delete-modal", "is_open", allow_duplicate=True),
+    Output("delete-modal-open", "data", allow_duplicate=True),
+    Input("delete-cancel-btn", "n_clicks"),
+    Input("delete-modal", "is_open"),   # catches “×” and backdrop
+    State("delete-modal-open", "data"),
+    prevent_initial_call=True,
+)
+def close_delete_modal(n_cancel, modal_is_open, modal_flag):
+    # Cancel clicked
+    if n_cancel:
+        return False, False
+
+    # Modal just got closed via “×” or backdrop
+    if not modal_is_open and modal_flag:
+        return False, False
+
+    raise dash.exceptions.PreventUpdate
+
+
+# --- Blur the entire app while modal is open ---
+@app.callback(
+    Output("app-blur-target", "style"),
+    Input("delete-modal-open", "data"),
+)
+def blur_background(is_open):
+    if is_open:
+        # blur + block interactions
+        return {
+            "filter": "blur(4px)",
+            "pointerEvents": "none",
+            "transition": "filter 150ms ease-in-out",
+        }
+    # explicitly restore interactivity (don’t rely on property removal)
+    return {
+        "filter": "none",
+        "pointerEvents": "auto",
+        "transition": "filter 150ms ease-in-out",
+    }
+
+
+# --- Confirm deletion: check password, delete, reset stores, toast ---
+@app.callback(
+    Output("delete-modal", "is_open", allow_duplicate=True),
+    Output("delete-modal-open", "data", allow_duplicate=True),
+    Output("folder-name", "data", allow_duplicate=True),
+    Output("upload-status", "data", allow_duplicate=True),
+    Output("delete-toast", "is_open"),
+    Output("delete-toast", "header"),
+    Output("delete-toast", "icon"),
+    Output("delete-toast", "children"),
+    Output("delete-inline-feedback", "children", allow_duplicate=True),
+    Output("upload-data", "contents", allow_duplicate=True),
+    Output("upload-data", "filename", allow_duplicate=True),
+    Output("url", "pathname"),
+    Input("delete-confirm-btn", "n_clicks"),      # click Confirm
+    Input("delete-password-input", "n_submit"),   # press Enter
+    State("delete-password-input", "value"),
+    State("delete-size-bytes", "data"),
+    prevent_initial_call=True,
+)
+def confirm_delete(n_click_confirm, n_submit, password_value, bytes_planned):
+    # if neither happened, do nothing
+    if not (n_click_confirm or n_submit):
+        raise dash.exceptions.PreventUpdate
+
+    # get the size of the files
+    planned_bytes = utl.format_bytes(int(bytes_planned or 0))
+
+    # get the password value
+    password_value = password_value or ""
+    if password_value != DELETE_PASSWORD:
+        # wrong password -> keep modal open, inline error + toast
+        return (
+            True,  # keep modal open
+            True,
+            dash.no_update,
+            dash.no_update,
+            True,              # toast open
+            "Deletion failed",
+            "danger",
+            "Password was incorrect. Nothing was deleted.",
+            "Incorrect password. Please try again.",
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,  # no redirect
+        )
+
+    removed = utl.delete_all_files_in_root(DELETE_ROOT)
+
+    # clear any caches your app uses (safe no-op if missing)
+    try:
+        utl.load_data.cache_clear()
+    except Exception as e:
+        logger.error(f"Cache clear failed: {e}")
+
+    logger.info(f"[Delete-All] Removed {removed} ({planned_bytes}) entries from {DELETE_ROOT} at {datetime.datetime.now(datetime.UTC).isoformat()}Z.")
+
+    # success: close modal, unblur, reset stores, show toast
+    return (
+        False,
+        False,
+        "",     # folder-name
+        "",     # upload-status
+        True,
+        "Deletion complete",
+        "success",
+        f"Removed {removed} item(s) ({planned_bytes}) from {DELETE_ROOT}.",
+        "",     # clear inline error
+        None,  # reset upload data field
+        None,  # reset upload data field
+        "/"
+    )
 
 
 def load_files(session_id: str, folder_name: str) ->  tuple[typing.Optional[dict[str: pd.DataFrame]], typing.Optional[pd.DataFrame], typing.Optional[tuple[int]], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame]]:
@@ -265,7 +464,7 @@ def load_files(session_id: str, folder_name: str) ->  tuple[typing.Optional[dict
     if not folder_name: return None, None, None, None, None
 
     # load the files into memory
-    scores, signals, window_sizes, anomaly_scores, distances, _, _ = uld.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+    scores, signals, window_sizes, anomaly_scores, distances, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
     return scores, signals, window_sizes, anomaly_scores, distances
 
 

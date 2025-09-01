@@ -8,7 +8,7 @@ class Level(enum.Enum):
 
 # define passwords
 DELETE_ROOT = "./tmp-data-folder"  # Folder whose contents will be fully removed
-DELETE_PASSWORD = os.environ.get("DELETE_PASSWORD", "changeme")
+DELETE_PASSWORD = os.environ.get("CPDASH_DELETE_PASSWORD", "changeme")
 
 # define some information
 DATA_FOLDER = "tmp-data-folder"

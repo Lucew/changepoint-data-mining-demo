@@ -2,16 +2,17 @@ import os
 import typing
 import functools
 import logging
+import shutil
 
 import pandas as pd
 import pandas.api.typing as pdtypes
 
+# get the logger
+logger = logging.getLogger("frontend-logger")
+
 
 @functools.lru_cache(1)
 def load_data(folder_path: str) -> tuple[dict[str: pd.DataFrame], pd.DataFrame, tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
-
-    # get the logger
-    logger = logging.getLogger("frontend-logger")
 
     # get all the different files from the folder
     files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
@@ -79,6 +80,53 @@ def load_data(folder_path: str) -> tuple[dict[str: pd.DataFrame], pd.DataFrame, 
 
     logger.info("Loaded data files into cache.")
     return scores, signals, window_sizes, anomaly_scores, distances, raw_signals_grouped, raw_signal_correlations
+
+
+def folder_size_bytes(root_path: str) -> int:
+    """
+    Walks the directory and sums file sizes. Follows regular files,
+    skips broken links; ignores permission errors.
+    """
+    if not os.path.isdir(root_path):
+        return 0
+    total = 0
+    for dirpath, _dirnames, filenames in os.walk(root_path):
+        for fn in filenames:
+            fp = os.path.join(dirpath, fn)
+            try:
+                if os.path.islink(fp):
+                    # count the link file itself, not the target
+                    total += os.lstat(fp).st_size
+                else:
+                    total += os.path.getsize(fp)
+            except Exception:
+                # best-effort; skip unreadables
+                continue
+    return total
+
+def format_bytes(num: int) -> str:
+    # human-friendly bytes
+    for unit in ["bytes", "KB", "MB", "GB", "TB"]:
+        if num < 1024 or unit == "TB":
+            return f"{num:.0f} {unit}" if unit == "bytes" else f"{num:.2f} {unit}"
+        num /= 1024.0
+
+
+def delete_all_files_in_root(root_path: str) -> int:
+    if not os.path.isdir(root_path):
+        return 0
+    removed = 0
+    for name in os.listdir(root_path):
+        p = os.path.join(root_path, name)
+        try:
+            if os.path.isdir(p) and not os.path.islink(p):
+                shutil.rmtree(p)
+            else:
+                os.remove(p)
+            removed += 1
+        except Exception as e:
+            logger.error(f"Failed removing {p}: {e}")
+    return removed
 
 
 if __name__ == '__main__':
