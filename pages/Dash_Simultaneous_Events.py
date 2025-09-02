@@ -375,6 +375,11 @@ def layout(session_id: str, folder_name: str, **kwargs):
     if not folder_name:
         return html.H1("Please upload a file using the sidebar.")
 
+    # check whether we have all necessary data
+    _, _, _, _, _, _, raw_signal_correlations = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+    if raw_signal_correlations is None:
+        return html.H1("Your file does not contain the 'signal_correlation.parquet' file.")
+
     # get some of the data to fill in the blanks and first selections
     scores, _, _, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
     signal_names = list(scores.keys())

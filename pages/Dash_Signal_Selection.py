@@ -568,6 +568,11 @@ def layout(session_id: str, folder_name: str, **kwargs):
     if not folder_name:
         return html.H1("Please upload a file using the sidebar.")
 
+    # check whether we have all necessary data
+    _, _, _, anomaly_scores, distances, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+    if anomaly_scores is None or distances is None:
+        return html.H1("Your zip-file does not contain the anomaly_scores.parquet or/and the distances.csv file(s).")
+
     # define an event for our custom event listener to drag and drop buttons
     drop_event = {"event": "dropcomplete", "props": ["detail.name", "detail.children"]}
     delete_event = {"event": 'shapeDeletion', "props": ["detail.children"]}
