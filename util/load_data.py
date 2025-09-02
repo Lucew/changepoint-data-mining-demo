@@ -1,17 +1,18 @@
 import os
 import typing
-import functools
 import logging
 import shutil
 
 import pandas as pd
 import pandas.api.typing as pdtypes
 
+import util.cache_registry as ucache
+
 # get the logger
 logger = logging.getLogger("frontend-logger")
 
 
-@functools.lru_cache(1)
+@ucache.lru_cache(1)
 def load_data(folder_path: str) -> tuple[dict[str: pd.DataFrame], pd.DataFrame, tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
 
     # get all the different files from the folder

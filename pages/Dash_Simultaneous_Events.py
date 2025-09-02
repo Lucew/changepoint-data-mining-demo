@@ -1,6 +1,4 @@
 # inspired by https://dash.plotly.com/interactive-graphing
-import functools
-import os
 import logging
 import time
 
@@ -16,6 +14,7 @@ from scipy.stats import rankdata as scipyrank
 
 import util.load_data as utl
 from GLOBALS import *
+import util.cache_registry as ucache
 
 
 # register the page to our application
@@ -47,7 +46,7 @@ styles = {
     }
 
 
-@functools.lru_cache(maxsize=1)
+@ucache.lru_cache(maxsize=1)
 def get_score_information(session_id: str, folder_name: str):
     start = time.perf_counter()
 
@@ -238,7 +237,7 @@ def find_others(session_id: str, folder_name: str, start, end, selected_signal, 
     return corr, signal_names
 
 
-@functools.lru_cache(10)
+@ucache.lru_cache(10)
 def get_rand(length: int):
     return np.random.uniform(-1, 1, length)
 

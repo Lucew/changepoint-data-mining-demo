@@ -1,6 +1,4 @@
 import logging
-import os
-import functools
 import time
 
 import plotly.graph_objs
@@ -14,6 +12,8 @@ import pandas as pd
 import util.load_data as utl
 import util.prepocessing as prep
 from GLOBALS import *
+import util.cache_registry as ucache
+
 
 # register the page to our application
 register_page(__name__, path="/heatmap")
@@ -65,7 +65,7 @@ def draw_heatmap(data: pd.DataFrame):
     return fig
 
 
-@functools.lru_cache(5)
+@ucache.lru_cache(5)
 def process_signals(session_id: str, folder_name: str, window_size: str = None, signal_list: tuple[str] = None, normalization_window_size: int = None) -> tuple[pd.DataFrame, pd.DataFrame, int, tuple[int]]:
     start = time.perf_counter()
 
@@ -112,7 +112,7 @@ def create_heatmap(session_id: str, folder_name: str, window_size: int = None, s
     return fig
 
 
-@functools.lru_cache(1)
+@ucache.lru_cache(1)
 def get_explanation():
     # get the explanation text from the file
     with open("./assets/explanation.txt") as filet:

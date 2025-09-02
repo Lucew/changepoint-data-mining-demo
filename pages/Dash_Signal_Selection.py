@@ -1,6 +1,6 @@
-import os
 import logging
 import time
+from time import perf_counter
 
 from dash import dcc, html, Input, Output, callback, State, clientside_callback, ctx, register_page, ClientsideFunction
 from dash_extensions import EventListener
@@ -10,14 +10,13 @@ import plotly.graph_objects as go
 import pandas as pd
 import pandas.api.typing as pdtypes
 import numpy as np
-import functools
 from sklearn.manifold import TSNE
-from time import perf_counter
 
 import util.load_data as utl
 import util.prepocessing as prep
 from GLOBALS import *
 import util.residuals as procd
+import util.cache_registry as ucache
 
 
 # register the page to our application
@@ -77,13 +76,13 @@ def draw_heatmap(data: pd.DataFrame):
     return fig
 
 
-@functools.cache
+@ucache.cache
 def get_random_state():
     # return np.random.RandomState(25)
     return np.random.RandomState(3)
 
 
-@functools.lru_cache(maxsize=1)
+@ucache.lru_cache(maxsize=1)
 def preprocess_regression_results(session_id: str, folder_name: str) -> (pd.DataFrame, pdtypes.DataFrameGroupBy,
                                                                          pd.Series):
     start = time.perf_counter()
@@ -104,7 +103,7 @@ def preprocess_regression_results(session_id: str, folder_name: str) -> (pd.Data
     return complete_regression_results, complete_regression_results_grouped, complete_max_correlation
 
 
-@functools.lru_cache(maxsize=1)
+@ucache.lru_cache(maxsize=1)
 def filter_regression_results(session_id: str, folder_name: str,
                               correlation_threshold: float = None) -> (pd.DataFrame, pd.DataFrame, float):
     start = time.perf_counter()
@@ -133,7 +132,7 @@ def filter_regression_results(session_id: str, folder_name: str,
     return filtered_regression_results, filtered_distance_matrix, correlation_threshold
 
 
-@functools.lru_cache(maxsize=2)
+@ucache.lru_cache(maxsize=2)
 def create_tsne(session_id: str, folder_name: str,
                 perplexity: int = None, correlation_threshold: float = None) -> (pd.DataFrame, int, float):
     # TODO: Recompute TSNE when different signals are selected

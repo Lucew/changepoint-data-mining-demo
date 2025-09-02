@@ -16,6 +16,7 @@ import pandas as pd
 
 import util.load_data as utl
 from GLOBALS import *
+import util.cache_registry as ucache
 
 
 # Page descriptions
@@ -77,6 +78,7 @@ side_bar_content = dbc.Container([
     # Display uploaded filename
     dbc.Button("Delete File.", id="delete-file-button", disabled=True, style={"margin": "1px"}),
     dbc.Button("Delete ALL Files.", id="delete-all-file-button", style={"margin": "1px"}),
+    dbc.Button("Stats.", id="print-cache-stats-button", style={"margin": "1px"}),
 
     # Responsive grid of page buttons
     html.Div(
@@ -438,6 +440,8 @@ def confirm_delete(n_click_confirm, n_submit, password_value, bytes_planned):
         logger.error(f"Cache clear failed: {e}")
 
     logger.info(f"[Delete-All] Removed {removed} ({planned_bytes}) entries from {DATA_FOLDER} at {datetime.datetime.now(datetime.UTC).isoformat()}Z.")
+    logger.info(f"[Remove-Cache] Cleared all cached entries.")
+    ucache.clear_all_caches()
 
     # success: close modal, unblur, reset stores, show toast
     return (
@@ -454,6 +458,11 @@ def confirm_delete(n_click_confirm, n_submit, password_value, bytes_planned):
         None,  # reset upload data field
         "/"
     )
+
+
+@app.callback(Input("print-cache-stats-button", "n_clicks"),)
+def print_cache_stats(n_clicks):
+    logger.info(ucache.cache_stats())
 
 
 def load_files(session_id: str, folder_name: str) ->  tuple[typing.Optional[dict[str: pd.DataFrame]], typing.Optional[pd.DataFrame], typing.Optional[tuple[int]], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame]]:
