@@ -83,32 +83,11 @@ def get_random_state():
 
 
 @ucache.lru_cache(maxsize=1)
-def preprocess_regression_results(session_id: str, folder_name: str) -> (pd.DataFrame, pdtypes.DataFrameGroupBy,
-                                                                         pd.Series):
-    start = time.perf_counter()
-    # load the regression results from the raw files
-    _, _, _, _, regression_results, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
-
-    # extend the regression results so every sensor is in x and y
-    complete_regression_results = pd.concat((regression_results,
-                                             regression_results.rename(columns={"x": "y", "y": "x"})),
-                                            ignore_index=True)
-
-    # group the flattened regression results by the tag
-    complete_regression_results_grouped = complete_regression_results.groupby("x")
-
-    # find the maximum correlation per signal tag
-    complete_max_correlation = complete_regression_results_grouped.max()
-    logger.info(f"[{__name__}]  Preprocessed regression results in {time.perf_counter() - start:0.2f} s.")
-    return complete_regression_results, complete_regression_results_grouped, complete_max_correlation
-
-
-@ucache.lru_cache(maxsize=1)
 def filter_regression_results(session_id: str, folder_name: str,
                               correlation_threshold: float = None) -> (pd.DataFrame, pd.DataFrame, float):
     start = time.perf_counter()
     # get the preprocessed regression results
-    regression_results, _, complete_max_correlation = preprocess_regression_results(session_id, folder_name)
+    regression_results, _, complete_max_correlation = utl.preprocess_regression_results(session_id, folder_name)
 
     # create default correlation threshold if not given
     if correlation_threshold is None:
@@ -147,7 +126,7 @@ def create_tsne(session_id: str, folder_name: str,
     _, _, _, anomaly_scores, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
     # load the maximum threshold information and signal names
-    _, _, max_correlation = preprocess_regression_results(session_id, folder_name)
+    _, _, max_correlation = utl.preprocess_regression_results(session_id, folder_name)
 
     # compute default perplexity
     # print("Parameters", session_id, folder_name, perplexity, correlation_threshold)
@@ -279,7 +258,7 @@ def find_nearest_index(df: pd.DataFrame, time_start, time_end) -> (int, int):
 def make_histogram(session_id: str, folder_name: str, correlation_threshold: float):
 
     # load the regression results
-    _, _, complete_max_correlation = preprocess_regression_results(session_id, folder_name)
+    _, _, complete_max_correlation = utl.preprocess_regression_results(session_id, folder_name)
 
     # make the histogram out of it
     fig = px.ecdf(complete_max_correlation, x="correlation", marginal="histogram", ecdfnorm=None)
@@ -308,14 +287,14 @@ def select_signals_scatter(session_id: str, folder_name: str, selected_data):
     selected_signals = [point["customdata"][0] for point in selected_data["points"]]
 
     # get the regression results
-    regression_results, _, _ = preprocess_regression_results(session_id, folder_name)
+    regression_results, _, _ = utl.preprocess_regression_results(session_id, folder_name)
 
     # get the scores from the files
     scores, _, _, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
     # compute the weighted scoring for each of the selected signals
     # TODO mean correlation value per cluster as hint whether it is a good cluster
-    result_df = procd.compute_weighted_residual_norm(regression_results, selected_signals, scores)
+    result_df = procd.compute_weighted_residual_norm(regression_results, selected_signals, scores, coming_from='signal-selection')
 
     # make the figure from the signals
     fig = draw_heatmap(result_df)
@@ -342,7 +321,7 @@ def click_signals_scatter(session_id: str, folder_name: str, click_data):
     selected_signal = [point["customdata"][0] for point in click_data["points"]][0]
 
     # get the regression results
-    _, extended_regression_results_grouped, _ = preprocess_regression_results(session_id, folder_name)
+    _, extended_regression_results_grouped, _ = utl.preprocess_regression_results(session_id, folder_name)
 
     # get the score data from the files
     scores, _, _, _, _, raw_signals, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
@@ -353,7 +332,7 @@ def click_signals_scatter(session_id: str, folder_name: str, click_data):
     # get the largest neighbors
     neighbors = regression_results.nlargest(5, "correlation")["y"].to_list()
     neighbors.append(selected_signal)
-    result_df = procd.compute_weighted_residual_norm(regression_results, neighbors, scores)
+    result_df = procd.compute_weighted_residual_norm(regression_results, neighbors, scores, coming_from='signal-selection2')
 
     # load the raw signals
     raw_signals = pd.concat(raw_signals.get_group(grp) for grp in neighbors)

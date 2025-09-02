@@ -1,10 +1,20 @@
+import weakref
+import typing
+import logging
+import time
+
 import pandas as pd
 from tqdm import tqdm
 import numpy as np
 
+_RESIDUAL_REGISTER = weakref.WeakValueDictionary()
+# get the logger
+logger = logging.getLogger("frontend-logger")
+
 
 def compute_weighted_residual_norm(regression_results: pd.DataFrame, signal_list: list[str], scores: dict[str: pd.DataFrame],
-                                   min_correlation: float = 0.05):
+                                   min_correlation: float = 0.05, coming_from: str = None, target: str = None):
+    start = time.perf_counter()
 
     # make a dict to save the resulting weighted residuals
     residual_results = dict()
@@ -18,7 +28,13 @@ def compute_weighted_residual_norm(regression_results: pd.DataFrame, signal_list
     # by accounting for a weight
     # results = {"x": [], "y": [], "correlation": [], "correlation delay": [],
     # "window size": [], "alpha": [], "beta": []}
-    for _, row in tqdm(regression_results.iterrows(), desc="Compute weighted Scoring", total=regression_results.shape[0]):
+    # for _, row in tqdm(regression_results.iterrows(), desc="Compute weighted Scoring", total=regression_results.shape[0]):
+    _iterations = 0
+    for _, row in regression_results.iterrows():
+
+        # check whether we have a target
+        if target is not None and row["x"] != target:
+            continue
 
         # extract all the necessary information from the row
         x = row['x']
@@ -82,9 +98,18 @@ def compute_weighted_residual_norm(regression_results: pd.DataFrame, signal_list
         sum_scores(x, signal1_residuals, index, residual_results)
         sum_scores(y, signal2_residuals, index, residual_results)
 
+        # update the iterations
+        _iterations += 1
+
     # make the overall dataframe
     result_df = pd.concat(residual_results, axis=1)
+    logger.info(f"[{__name__}] Computing the residuals took {time.perf_counter() - start:0.2f} s and {_iterations} iters. {coming_from=}.")
     return result_df
+
+
+def register_residual_fn(fn: typing.Callable):
+    _RESIDUAL_REGISTER[fn.__name__] = fn
+    return fn
 
 
 def sum_scores(name, residuals: np.ndarray, index: np.ndarray, saving_dict: dict[str: pd.Series]):
@@ -92,3 +117,35 @@ def sum_scores(name, residuals: np.ndarray, index: np.ndarray, saving_dict: dict
         saving_dict[name] = saving_dict[name].add(pd.Series(data=residuals, index=index), fill_value=0)
     else:
         saving_dict[name] = pd.Series(data=residuals, index=index)
+
+
+@register_residual_fn
+def standard_anomaly_scoring(residuals: pd.Series):
+    """
+    The standard anomaly scoring function also used in the project.
+    :param residuals:
+    :return:
+    """
+    # residuals = (residuals - residuals.min()) / (residuals.max() - residuals.min())
+    residuals = (residuals - residuals.median()) / (residuals.quantile(0.75) - residuals.quantile(0.25))
+    return residuals.max()
+
+
+@register_residual_fn
+def integral_anomaly_scoring(residuals: pd.Series):
+    """
+    The standard anomaly scoring function also used in the project.
+    :param residuals:
+    :return:
+    """
+    # residuals = (residuals - residuals.min()) / (residuals.max() - residuals.min())
+    residuals = (residuals - residuals.median()) / (residuals.quantile(0.75) - residuals.quantile(0.25))
+    return residuals.sum()
+
+
+def get_registered_scoring_functions():
+    return _RESIDUAL_REGISTER
+
+def get_standard_scoring_functions():
+    assert standard_anomaly_scoring.__name__ in _RESIDUAL_REGISTER
+    return standard_anomaly_scoring.__name__, standard_anomaly_scoring

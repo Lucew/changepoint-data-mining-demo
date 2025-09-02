@@ -2,11 +2,14 @@ import os
 import typing
 import logging
 import shutil
+import time
 
 import pandas as pd
 import pandas.api.typing as pdtypes
 
 import util.cache_registry as ucache
+from GLOBALS import *
+
 
 # get the logger
 logger = logging.getLogger("frontend-logger")
@@ -14,6 +17,7 @@ logger = logging.getLogger("frontend-logger")
 
 @ucache.lru_cache(1)
 def load_data(folder_path: str) -> tuple[dict[str: pd.DataFrame], pd.DataFrame, tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
+    start = time.perf_counter()
 
     # get all the different files from the folder
     files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
@@ -79,8 +83,29 @@ def load_data(folder_path: str) -> tuple[dict[str: pd.DataFrame], pd.DataFrame, 
     raw_signals = raw_signals.sort_index(ascending=True)
     raw_signals_grouped = raw_signals.groupby("sensor")
 
-    logger.info("Loaded data files into cache.")
+    logger.info(f"[{__name__}] Loaded data files into cache from disk {time.perf_counter() - start:0.2f} s.")
     return scores, signals, window_sizes, anomaly_scores, distances, raw_signals_grouped, raw_signal_correlations
+
+
+@ucache.lru_cache(maxsize=1)
+def preprocess_regression_results(session_id: str, folder_name: str) -> (pd.DataFrame, pdtypes.DataFrameGroupBy,
+                                                                         pd.Series):
+    start = time.perf_counter()
+    # load the regression results from the raw files
+    _, _, _, _, regression_results, _, _ = load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+
+    # extend the regression results so every sensor is in x and y
+    complete_regression_results = pd.concat((regression_results,
+                                             regression_results.rename(columns={"x": "y", "y": "x"})),
+                                            ignore_index=True)
+
+    # group the flattened regression results by the tag
+    complete_regression_results_grouped = complete_regression_results.groupby("x")
+
+    # find the maximum correlation per signal tag
+    complete_max_correlation = complete_regression_results_grouped.max()
+    logger.info(f"[{__name__}]  Preprocessed regression results in {time.perf_counter() - start:0.2f} s.")
+    return complete_regression_results, complete_regression_results_grouped, complete_max_correlation
 
 
 def folder_size_bytes(root_path: str) -> int:

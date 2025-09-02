@@ -23,7 +23,8 @@ import util.cache_registry as ucache
 page_info = {
     "Heatmap": "This page allows to analyze CP scores of multiple signals as heatmap.",
     "Scatter": "This page allows to analyze CP correlation in scatter plots with anomaly scores.",
-    "Correlate": "This page gives you export options and reporting tools."
+    "Correlate": "This page gives you export options and reporting tools.",
+    "Anomaly": "This page allows you to scan through the anomalies",
 }
 
 # get the logger
