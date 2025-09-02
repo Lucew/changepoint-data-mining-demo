@@ -2,6 +2,7 @@ import logging
 import time
 from time import perf_counter
 
+import dash
 from dash import dcc, html, Input, Output, callback, State, clientside_callback, ctx, register_page, ClientsideFunction
 from dash_extensions import EventListener
 import dash_bootstrap_components as dbc
@@ -369,7 +370,7 @@ def click_in_residuals(click_data, residual_fig, signal_fig):
 
     # check whether we selected nothing
     if click_data is None:
-        return residual_fig, signal_fig
+        return dash.no_update, dash.no_update
 
     # delete the old shapes
     residual_fig['layout']['shapes'] = []
