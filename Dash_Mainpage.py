@@ -7,6 +7,7 @@ import uuid
 import shutil
 import logging
 import datetime
+import argparse
 
 import dash
 import plotly
@@ -30,12 +31,12 @@ page_info = {
 # get the logger
 # https://stackoverflow.com/q/3220284
 logger = logging.getLogger("frontend-logger")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG if APPLICATION_LEVEL == Level.DEBUG else logging.INFO)
 ch = logging.StreamHandler()
 logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 ch.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
 logger.addHandler(ch)
-ch.setLevel(logging.DEBUG)
+ch.setLevel(logging.DEBUG if APPLICATION_LEVEL == Level.DEBUG else logging.INFO)
 
 # Dash app setup
 external_stylesheets = [dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME]
@@ -473,7 +474,35 @@ def load_files(session_id: str, folder_name: str) ->  tuple[typing.Optional[dict
     return scores, signals, window_sizes, anomaly_scores, distances
 
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 if __name__ == '__main__':
+    # parse the input arguments
+    parser = argparse.ArgumentParser(description='Dash Startup Script.')
+    parser.add_argument("--debug", '-d', nargs='?', type=str2bool, default=None, help='Enable debug mode of the app.')
+    __args = parser.parse_args()
+    __debug = __args.debug
+
+    # define the debug
+    if __debug is None:
+        __debug= APPLICATION_LEVEL == Level.DEBUG
+
+    # deactivate the flask logger if __debug is false
+    # https://community.plotly.com/t/suppress-dash-server-posts-to-console/8855/2
+    if not __debug:
+        log = logging.getLogger('werkzeug')
+        log.setLevel(logging.ERROR)
+
+
     # log some versions
     logger.info(f"Dash version: {dash.__version__}.")
     logger.info(f"Plotly version: {plotly.__version__}.")
@@ -483,5 +512,5 @@ if __name__ == '__main__':
         os.mkdir(DATA_FOLDER)
 
     # start the application
-    logger.info(f"Running Dash Main Page with level {APPLICATION_LEVEL=}.")
-    app.run(debug=APPLICATION_LEVEL==Level.DEBUG)
+    logger.info(f"Running Dash Main Page with level {APPLICATION_LEVEL=} and {__debug=}.")
+    app.run(debug=__debug)
