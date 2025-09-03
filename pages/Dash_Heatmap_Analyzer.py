@@ -75,8 +75,7 @@ def process_signals(session_id: str, folder_name: str, window_size: str = None, 
     # get the smallest window size if None is given
     if window_size is None:
         window_size = min(window_sizes)
-    else:
-        window_size = int(window_size)
+    window_size = int(window_size)
 
     # select the signals
     if signal_list:
@@ -99,13 +98,13 @@ def process_signals(session_id: str, folder_name: str, window_size: str = None, 
     score_df.index = pd.to_datetime(score_df.index)
     signal_df.index = pd.to_datetime(signal_df.index)
 
-    logger.info(f"[{__name__}] Preprocessed data in {time.perf_counter() - start:0.2f} s.")
+    logger.info(f"[{__name__}] Preprocessed data in {time.perf_counter() - start:0.2f} s. Parameters: {window_size=}, {signal_list=}, {normalization_window_size=}")
     return score_df, signal_df, window_size, window_sizes
 
 
-def create_heatmap(session_id: str, folder_name: str, window_size: int = None, signal_list: tuple[str] = None) -> plotly.graph_objs.Figure:
+def create_heatmap(session_id: str, folder_name: str, window_size: int = None, signal_list: tuple[str] = None, normalization_window_size: int = None) -> plotly.graph_objs.Figure:
     # read the signals
-    score_df, signal_df, _, _ = process_signals(session_id=session_id, folder_name=folder_name, window_size=window_size, signal_list=signal_list)
+    score_df, signal_df, _, _ = process_signals(session_id=session_id, folder_name=folder_name, window_size=window_size, signal_list=signal_list, normalization_window_size=normalization_window_size)
 
     # make the figure
     fig = draw_heatmap(score_df)
@@ -193,7 +192,7 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
                 ),
                 "Window Size Selection"
                 ,
-                dbc.Select(id="select-window-size", options=sorted(window_sizes), value=window_size, persistence="session"),
+                dbc.Select(id="select-window-size", options=sorted(window_sizes), value=window_size),
             ],
                 style=dash_heatmap_styles['div'],
             ),
@@ -311,9 +310,8 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
 
 
 @callback(
-    Output(component_id='text-container', component_property='children', allow_duplicate=True),
     Output(component_id='heatmap-signal-graph', component_property='figure', allow_duplicate=True),
-    Output(component_id='overall-div', component_property='children'),
+    Output(component_id='overall-div', component_property='children', allow_duplicate=True),
     Output(component_id='delete-button-all', component_property='children'),
     Output("el", "event"),
     Output("delete-listener", "event"),
@@ -337,10 +335,10 @@ def delete_shapes(delete_all, current_figure, relayoutData, all_children,
                   n_delete_events, delete_event_data, normalization_size,
                   session_id, folder_name, window_size):
 
-    # check whether the relayoutData was the trigger, but it was not a shape update
-    logger.info(f"[{__name__}] Triggered Element {ctx.triggered_id}")
-    if ctx.triggered_id == 'heatmap-signal-graph' and "shapes" not in relayoutData:
-        return f"Random reload at {pd.Timestamp('today')}", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    # check whether the relayoutData was the trigger, but it was only sizing
+    if ctx.triggered_id == 'heatmap-signal-graph' and relayoutData == {'autosize': True}:
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    logger.info(f"[{__name__}] Triggered Element {ctx.triggered_id}, {ctx.inputs}")
 
     # get the new columns
     if event_data is not None:
@@ -362,6 +360,10 @@ def delete_shapes(delete_all, current_figure, relayoutData, all_children,
     # get existing shapes and sort out all that are not rect
     if len(current_figure['data'][0]['y']) == len(new_cols):
         shapes = [ele for ele in current_figure['layout'].get('shapes', []) if ele['type'] == 'rect']
+
+        # delete the shapes so we can update them later
+        if 'shapes' in current_figure['layout']:
+            current_figure['layout']['shapes'].clear()
     else:
         shapes = []
 
@@ -430,15 +432,56 @@ def delete_shapes(delete_all, current_figure, relayoutData, all_children,
                                                             open=True,
                                                             id=f'signal-selection{idx + 1}'
                                                             )]
-                                     , style=dash_heatmap_styles['div']
+                                     , style=dash_heatmap_styles['div'], id=f'heatmap-signal-selection-div-{idx+1}'
                                      )
                             )
 
+    # only redraw the figure if we changed some of the columns or deleted s
+    if ctx.triggered_id == "el":
+        current_figure = draw_heatmap(score_df[new_cols])
+    else:
+        current_figure = plotly.graph_objs.Figure(current_figure, )
+
     # update figure layout (shapes and also the ordering on the yaxis)
-    current_figure = draw_heatmap(score_df[new_cols])
     current_figure.update_layout(shapes=shapes)
 
-    return f"Klicked at {pd.Timestamp('today')}", current_figure, all_children, f"Delete all {len(shapes)}", None, None
+    return current_figure, all_children, f"Delete all {len(shapes)}", None, None
+
+
+@callback(
+    Output('overall-div', 'children'),
+    Input('heatmap-signal-graph', 'clickData'),
+    State('overall-div', 'children'),
+    prevent_initial_call=True,
+)
+def click_into_heatmap(click_data: dict, all_children):
+
+    if click_data is None:
+        return dash.no_update, dash.no_update
+
+    # get the signals we selected
+    selected_time = [point["x"] for point in click_data["points"]][0]
+
+    # go through all the children with the signal data
+    for child in all_children:
+        # get the figure from the nested structure
+        fig = child['props']['children'][1]['props']['children'][0]['props']['children'][0]['props']['figure']
+
+        # get the data from within the figure
+        data = fig['data'][0]['x']
+        st, en = data[0], data[-1]
+
+        # delete old shapes
+        fig['layout']['shapes'] = []
+
+        # convert into figure
+        fig = plotly.graph_objs.Figure(fig)
+
+        if pd.Timestamp(st) <= pd.Timestamp(selected_time) <= pd.Timestamp(en):
+            fig.add_vline(x=selected_time)
+        child['props']['children'][1]['props']['children'][0]['props']['children'][0]['props']['figure'] = fig
+
+    return all_children
 
 
 @callback(Output('text-container', 'children'), Input('heatmap-signal-graph', 'relayoutData'), State('heatmap-signal-graph', 'figure'), prevent_initial_call=True)
