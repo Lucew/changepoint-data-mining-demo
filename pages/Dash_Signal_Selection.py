@@ -274,6 +274,8 @@ def make_histogram(session_id: str, folder_name: str, correlation_threshold: flo
     Output(component_id="scatter-signal-graph", component_property="figure", allow_duplicate=True),
     Output(component_id='div-scatter-signal-graph', component_property="hidden"),
     Output(component_id='scatter-overall-div', component_property='hidden'),
+    Output(component_id='scatter-overall-div2', component_property='hidden', allow_duplicate=True),
+    Output(component_id='div-scatter-signal-graph2', component_property='hidden', allow_duplicate=True),
     Input("session-id", "data"),
     Input("folder-name", "data"),
     Input(component_id="scatter-graph", component_property="selectedData"),
@@ -282,7 +284,7 @@ def select_signals_scatter(session_id: str, folder_name: str, selected_data):
 
     # check whether we selected nothing
     if selected_data is None or len(selected_data["points"]) == 0:
-        return go.Figure(go.Scatter(x=[], y=[])), True, True
+        return go.Figure(go.Scatter(x=[], y=[])), True, True, dash.no_update, dash.no_update
 
     # get the signals we selected
     selected_signals = [point["customdata"][0] for point in selected_data["points"]]
@@ -300,7 +302,7 @@ def select_signals_scatter(session_id: str, folder_name: str, selected_data):
     # make the figure from the signals
     fig = draw_heatmap(result_df)
 
-    return fig, False, False
+    return fig, False, False, True, True
 
 
 @callback(
@@ -435,6 +437,11 @@ def delete_shapes(session_id: str, folder_name: str,
                   delete_all, current_figure, relayoutData, all_children, n_delete_events, delete_event_data,
                   click_event):
 
+    # check whether the relayoutData was the trigger, but it was only sizing
+    if ctx.triggered_id == 'heatmap-signal-graph' and relayoutData == {'autosize': True}:
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
+    logger.info(f"[{__name__}] Triggered Element {ctx.triggered_id}, {ctx.inputs}")
     # get existing shapes and sort out all that are not rect
     if len(current_figure['data'][0]['y']):
         shapes = [ele for ele in current_figure['layout'].get('shapes', []) if ele['type'] == 'rect']
