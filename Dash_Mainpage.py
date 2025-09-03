@@ -270,7 +270,7 @@ def delete_own_files(n: int, session_id: str):
     shutil.rmtree(filename)
 
     # clear the function cache
-    utl.load_data.cache_clear()
+    ucache.clear_all_caches()
 
     # log the deletion
     logger.info(f"Deleted files from session {session_id}.")
