@@ -37,10 +37,6 @@ ch.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
 logger.addHandler(ch)
 ch.setLevel(logging.DEBUG)
 
-# log some versions
-logger.info(f"Dash version: {dash.__version__}.")
-logger.info(f"Plotly version: {plotly.__version__}.")
-
 # Dash app setup
 external_stylesheets = [dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME]
 app = dash.Dash(__name__, use_pages=PAGED, external_stylesheets=external_stylesheets,
@@ -478,5 +474,14 @@ def load_files(session_id: str, folder_name: str) ->  tuple[typing.Optional[dict
 
 
 if __name__ == '__main__':
+    # log some versions
+    logger.info(f"Dash version: {dash.__version__}.")
+    logger.info(f"Plotly version: {plotly.__version__}.")
+
+    # create the data folder if not already there
+    if not os.path.isdir(DATA_FOLDER):
+        os.mkdir(DATA_FOLDER)
+
+    # start the application
     logger.info(f"Running Dash Main Page with level {APPLICATION_LEVEL=}.")
     app.run(debug=APPLICATION_LEVEL==Level.DEBUG)

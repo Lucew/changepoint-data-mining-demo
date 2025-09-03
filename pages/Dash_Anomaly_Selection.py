@@ -185,7 +185,7 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
                 style=dash_heatmap_styles['div'],
             ),
             html.Div(children=[
-                dbc.Label(['For folder operations see:  ', html.A("here", href='https://dash.plotly.com/datatable', target="_blank")]),
+                dbc.Label(['For folder operations see:  ', html.A("here", href='https://dash.plotly.com/datatable/filtering', target="_blank")]),
                 dcc.Loading(
                     id="anomaly-selection-loading-signals",
                     children=[
