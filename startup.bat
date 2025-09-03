@@ -1,17 +1,15 @@
 @echo off
-setlocal ENABLEEXTENSIONS
-rem Always run from the script's folder
+setlocal ENABLEEXTENSIONS ENABLEDELAYEDEXPANSION
 pushd "%~dp0"
-chcp 65001 >nul
 
 rem -------- settings --------
 set "VENV_DIR=.venv"
-set "APP_URL=http://127.0.0.1:8050/"
-rem How long to wait for the server to come up before giving up (seconds)
-set "READY_TIMEOUT=180"
+set "DEFAULT_ARGS=--debug False --port 8050"
+set "DEFAULT_HOST=127.0.0.1"
+set "WAIT_BEFORE_BROWSER=3"
 rem --------------------------
 
-rem Find Python in typical layouts
+set "PY_EXE="
 if exist "%VENV_DIR%\Scripts\python.exe" (
     set "PY_EXE=%VENV_DIR%\Scripts\python.exe"
 ) else if exist "%VENV_DIR%\python.exe" (
@@ -19,23 +17,49 @@ if exist "%VENV_DIR%\Scripts\python.exe" (
 )
 
 if not defined PY_EXE (
-    call :missing_env | more
+    echo [ERROR] Could not find python in .venv
     goto :END
 )
 
 if not exist "Dash_Mainpage.py" (
-    echo [ERROR] "Dash_Mainpage.py" not found in:
-    echo   %CD%
-    echo Make sure this script sits next to Dash_Mainpage.py.
+    echo [ERROR] Dash_Mainpage.py not found
     goto :END
 )
 
+rem Use defaults unless args were provided to the .bat
+if "%~1"=="" (
+    set "ARGS=%DEFAULT_ARGS%"
+) else (
+    set "ARGS=%*"
+)
+
+rem ---- parse ARGS for port/host (robust; no extra windows; no scoping issues) ----
+set "PORT="
+set "HOST="
+call :PARSE_ARGS %ARGS%
+
+if not defined PORT set "PORT=8050"
+if not defined HOST set "HOST=%DEFAULT_HOST%"
+
+rem If host is 0.0.0.0 / :: / * (bind-all), open on 127.0.0.1 for the browser
+set "BROWSER_HOST=%HOST%"
+if /I "%HOST%"=="0.0.0.0" set "BROWSER_HOST=127.0.0.1"
+if /I "%HOST%"=="::"      set "BROWSER_HOST=127.0.0.1"
+if "%HOST%"=="*"          set "BROWSER_HOST=127.0.0.1"
+
+set "APP_URL=http://%BROWSER_HOST%:%PORT%/"
+
 echo Using interpreter: "%PY_EXE%"
-echo Starting Dash app...
-echo with command: "%PY_EXE%" "Dash_Mainpage.py" --debug False
+echo Starting: Dash_Mainpage.py %ARGS%
+echo Will open browser at %APP_URL% after %WAIT_BEFORE_BROWSER%s
+echo (Press Ctrl+C to stop the app.)
 echo.
 
-"%PY_EXE%" "Dash_Mainpage.py" --debug False
+rem --- open browser after a short delay (one-shot helper) ---
+start "" cmd /c "timeout /t %WAIT_BEFORE_BROWSER% /nobreak >nul && start "" "%APP_URL%""
+
+rem --- run the app in foreground so Ctrl+C kills it ---
+"%PY_EXE%" Dash_Mainpage.py %ARGS%
 set "EXITCODE=%ERRORLEVEL%"
 
 echo.
@@ -48,23 +72,63 @@ popd
 endlocal
 goto :EOF
 
-:missing_env
-@echo [ERROR] Couldn't find a Python interpreter in ".venv".
-@echo.
-@echo I looked for:
-@echo   - .venv\Scripts\python.exe   (pip venv / uv on Windows)
-@echo   - .venv\python.exe           (conda env created at a path)
-@echo.
-@echo Quick create commands (run ONE of these in this folder):
-@echo   ^> uv
-@echo   uv venv --python 3.11
-@echo   uv pip install -r requirements.txt
-@echo.
-@echo   ^> python -m venv
-@echo   python -m venv .venv
-@echo   .venv\Scripts\python.exe -m pip install -r requirements.txt
-@echo.
-@echo   ^> conda (path-based env)
-@echo   conda create -y -p .venv python=3.11
-@echo   .venv\python.exe -m pip install -r requirements.txt
-@echo.
+
+:: ==============================
+:: Parse %* for --port/-p and --host/-h in forms:
+::   --port N   --port=N   -p N   -p=N   -pN
+::   --host H   --host=H   -h H   -h=H   -hH
+:: Sets PORT and HOST if present.
+:: ==============================
+:PARSE_ARGS
+:PARSE_LOOP
+if "%~1"=="" goto :EOF
+set "arg=%~1"
+
+rem ---- PORT ----
+if /I "%arg%"=="--port" (
+    set "PORT=%~2"
+    shift & shift & goto :PARSE_LOOP
+)
+if /I "!arg:~0,7!"=="--port=" (
+    set "PORT=!arg:~7!"
+    shift & goto :PARSE_LOOP
+)
+if /I "%arg%"=="-p" (
+    set "PORT=%~2"
+    shift & shift & goto :PARSE_LOOP
+)
+if /I "!arg:~0,3!"=="-p=" (
+    set "PORT=!arg:~3!"
+    shift & goto :PARSE_LOOP
+)
+if /I "!arg:~0,2!"=="-p" (
+    rem handles -p9000 (no separator)
+    set "PORT=!arg:~2!"
+    shift & goto :PARSE_LOOP
+)
+
+rem ---- HOST ----
+if /I "%arg%"=="--host" (
+    set "HOST=%~2"
+    shift & shift & goto :PARSE_LOOP
+)
+if /I "!arg:~0,7!"=="--host=" (
+    set "HOST=!arg:~7!"
+    shift & goto :PARSE_LOOP
+)
+if /I "%arg%"=="-h" (
+    set "HOST=%~2"
+    shift & shift & goto :PARSE_LOOP
+)
+if /I "!arg:~0,3!"=="-h=" (
+    set "HOST=!arg:~3!"
+    shift & goto :PARSE_LOOP
+)
+if /I "!arg:~0,2!"=="-h" (
+    rem handles -h127.0.0.1 (no separator)
+    set "HOST=!arg:~2!"
+    shift & goto :PARSE_LOOP
+)
+
+shift
+goto :PARSE_LOOP

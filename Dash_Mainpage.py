@@ -486,9 +486,11 @@ def str2bool(v):
 
 
 if __name__ == '__main__':
+
     # parse the input arguments
     parser = argparse.ArgumentParser(description='Dash Startup Script.')
     parser.add_argument("--debug", '-d', nargs='?', type=str2bool, default=None, help='Enable debug mode of the app.')
+    parser.add_argument("--port", '-p', default=8050, help='Set the application port.')
     __args = parser.parse_args()
     __debug = __args.debug
 
@@ -513,4 +515,4 @@ if __name__ == '__main__':
 
     # start the application
     logger.info(f"Running Dash Main Page with level {APPLICATION_LEVEL=} and {__debug=}.")
-    app.run(debug=__debug)
+    app.run(debug=__debug, port=__args.port)
