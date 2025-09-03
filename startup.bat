@@ -56,7 +56,7 @@ echo (Press Ctrl+C to stop the app.)
 echo.
 
 rem --- open browser after a short delay (one-shot helper) ---
-start "" cmd /c "timeout /t %WAIT_BEFORE_BROWSER% /nobreak >nul && start "" "%APP_URL%""
+start "Dash: Browser opener" cmd /c "title Dash - Browser opener & echo This window waits %WAIT_BEFORE_BROWSER% seconds, then opens: %APP_URL% & echo Press any key to cancel. & timeout /t %WAIT_BEFORE_BROWSER% && start "" "%APP_URL%""
 
 rem --- run the app in foreground so Ctrl+C kills it ---
 "%PY_EXE%" Dash_Mainpage.py %ARGS%
