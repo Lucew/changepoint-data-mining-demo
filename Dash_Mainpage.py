@@ -193,6 +193,7 @@ app.layout = html.Div(
     Output("file-name", "data", allow_duplicate=True),
     Output("folder-name", "data", allow_duplicate=True),
     Output("upload-status", "data"),
+    Output("url", "pathname", allow_duplicate=True),
     Input("upload-data", "contents"),
     State("upload-data", "filename"),
     Input('session-id', 'data'),
@@ -201,9 +202,9 @@ app.layout = html.Div(
 def handle_zip_upload(contents: str, filename: str, session_id: str):
     # check the obvious problems
     if not filename:
-        return "", "", ""
+        return "", "", "", "/"
     if not filename.lower().endswith(".zip"):
-        return "", "", "Wrong filetype"
+        return "", "", "Wrong filetype", "/"
 
     try:
         # Decode uploaded content
@@ -239,13 +240,13 @@ def handle_zip_upload(contents: str, filename: str, session_id: str):
 
     except Exception as e:
         logger.error(e)
-        return "", "", "Error loading files"
+        return "", "", "Error loading files", "/"
 
     # log the success
     logger.info(f"Uploaded file {filename} with folder {folder} from session {session_id}.")
 
     # create the success returns
-    return filename, folder, ""
+    return filename, folder, "", "/"
 
 
 @app.callback(
