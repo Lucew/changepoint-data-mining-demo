@@ -3,12 +3,14 @@ import weakref
 import functools
 import typing as tp
 import dataclasses
+import logging
 
 # We keep weak references so this registry does not keep functions alive.
 # Each item is the cached function object returned by functools.lru_cache(...)
 _Registry = weakref.WeakSet[tp.Callable[..., tp.Any]]
 _registry: _Registry = weakref.WeakSet()
 _lock = threading.RLock()
+logger = logging.getLogger("frontend-logger")
 
 
 def _register_cached_function(func: tp.Callable[..., tp.Any]) -> tp.Callable[..., tp.Any]:
@@ -57,6 +59,7 @@ def cache(fn: tp.Optional[tp.Callable[..., tp.Any]] = None) -> tp.Callable[..., 
 
 def clear_all_caches() -> None:
     """Clear every registered cache. Safe to call multiple times."""
+    logger.info("Clearing all caches.")
     with _lock:
         # Copy to a list so we don't mutate during iteration if something GC's
         for func in list(_registry):
