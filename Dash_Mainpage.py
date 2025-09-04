@@ -501,7 +501,6 @@ if __name__ == '__main__':
         log = logging.getLogger('werkzeug')
         log.setLevel(logging.ERROR)
 
-
     # log some versions
     logger.info(f"Dash version: {dash.__version__}.")
     logger.info(f"Plotly version: {plotly.__version__}.")
