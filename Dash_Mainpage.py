@@ -236,7 +236,6 @@ def handle_zip_upload(contents: str, filename: str, session_id: str):
 
         # clear function cache and load the data to check for any errors
         ucache.clear_all_caches()
-        logger.info(f"Cleared all caches before reloading data.")
         load_files(session_id, folder)
 
     except Exception as e:
@@ -437,7 +436,6 @@ def confirm_delete(n_click_confirm, n_submit, password_value, bytes_planned):
     logger.info(f"[Delete-All] Removed {removed} ({planned_bytes}) entries from {DATA_FOLDER} at {datetime.datetime.now(datetime.UTC).isoformat()}Z.")
 
     # clear the caches
-    logger.info(f"[Remove-Cache] Cleared all cached entries.")
     ucache.clear_all_caches()
 
     # success: close modal, unblur, reset stores, show toast
