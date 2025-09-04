@@ -235,7 +235,8 @@ def handle_zip_upload(contents: str, filename: str, session_id: str):
                 zipref.extract(member=member, path=output_folder)
 
         # clear function cache and load the data to check for any errors
-        utl.load_data.cache_clear()
+        ucache.clear_all_caches()
+        logger.info(f"Cleared all caches before reloading data.")
         load_files(session_id, folder)
 
     except Exception as e:
@@ -432,13 +433,10 @@ def confirm_delete(n_click_confirm, n_submit, password_value, bytes_planned):
 
     removed = utl.delete_all_files_in_root(DATA_FOLDER)
 
-    # clear any caches your app uses (safe no-op if missing)
-    try:
-        utl.load_data.cache_clear()
-    except Exception as e:
-        logger.error(f"Cache clear failed: {e}")
-
+    # logg the progress
     logger.info(f"[Delete-All] Removed {removed} ({planned_bytes}) entries from {DATA_FOLDER} at {datetime.datetime.now(datetime.UTC).isoformat()}Z.")
+
+    # clear the caches
     logger.info(f"[Remove-Cache] Cleared all cached entries.")
     ucache.clear_all_caches()
 
