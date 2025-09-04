@@ -59,7 +59,7 @@ def cache(fn: tp.Optional[tp.Callable[..., tp.Any]] = None) -> tp.Callable[..., 
 
 def clear_all_caches() -> None:
     """Clear every registered cache. Safe to call multiple times."""
-    logger.info("Clearing all caches.")
+    logger.info(f"[{__name__}] Clearing all caches.")
     with _lock:
         # Copy to a list so we don't mutate during iteration if something GC's
         for func in list(_registry):
