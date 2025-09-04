@@ -276,8 +276,8 @@ def make_histogram(session_id: str, folder_name: str, correlation_threshold: flo
     Output(component_id='scatter-overall-div', component_property='hidden'),
     Output(component_id='scatter-overall-div2', component_property='hidden', allow_duplicate=True),
     Output(component_id='div-scatter-signal-graph2', component_property='hidden', allow_duplicate=True),
-    Input("session-id", "data"),
-    Input("folder-name", "data"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
     Input(component_id="scatter-graph", component_property="selectedData"),
     prevent_initial_call=True)
 def select_signals_scatter(session_id: str, folder_name: str, selected_data):
@@ -310,8 +310,8 @@ def select_signals_scatter(session_id: str, folder_name: str, selected_data):
     Output(component_id="raw-scatter-signal-graph", component_property="figure", allow_duplicate=True),
     Output(component_id='scatter-overall-div2', component_property='hidden'),
     Output(component_id='div-scatter-signal-graph2', component_property='hidden'),
-    Input("session-id", "data"),
-    Input("folder-name", "data"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
     Input(component_id="scatter-graph", component_property="clickData"),
     prevent_initial_call=True)
 def click_signals_scatter(session_id: str, folder_name: str, click_data):
@@ -393,8 +393,8 @@ def click_in_residuals(click_data, residual_fig, signal_fig):
 @callback(
     Output('scatter-graph', 'figure'),
     Output('scatter-graph3d', 'figure'),
-    Input("session-id", "data"),
-    Input("folder-name", "data"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
     Input('perplexity-slider', 'value'),
     Input('component-select', 'value'),
     Input('measurement-select', 'value'),
@@ -409,8 +409,8 @@ def update_scatter_plots(session_id: str, folder_name: str,
 @callback(
     Output('histogram-graph', 'figure'),
     Output('corr-val-div', 'children'),
-    Input("session-id", "data"),
-    Input("folder-name", "data"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
     Input('correlation-slider', 'value')
 )
 def update_histogram(session_id: str, folder_name: str, correlation_threshold: float):
@@ -422,8 +422,8 @@ def update_histogram(session_id: str, folder_name: str, correlation_threshold: f
     Output(component_id='scatter-overall-div', component_property='children'),
     Output(component_id='scatter-delete-button-all', component_property='children'),
     Output(component_id="scatter-delete-listener", component_property="event"),
-    Input("session-id", "data"),
-    Input("folder-name", "data"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
     Input(component_id='scatter-delete-button-all', component_property='n_clicks'),
     State(component_id='scatter-signal-graph', component_property='figure'),
     Input(component_id='scatter-signal-graph', component_property='relayoutData'),

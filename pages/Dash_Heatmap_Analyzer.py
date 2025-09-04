@@ -325,8 +325,8 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
     Input("delete-listener", "n_events"),
     State("delete-listener", "event"),
     Input("normalization-input", "value"),
-    Input("session-id", "data"),
-    Input("folder-name", "data"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
     Input("select-window-size", "value"),
     prevent_initial_call=True,
 )

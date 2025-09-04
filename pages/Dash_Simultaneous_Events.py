@@ -78,8 +78,8 @@ def get_score_information(session_id: str, folder_name: str):
     Output('hidden-graph1', 'figure'),
     Output('hidden-graph1-container', 'hidden'),
     Output('hidden-graph2-container', 'hidden'),
-    Input("session-id", "data"),
-    Input("folder-name", "data"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
     Input('basic-interactions', 'selectedData'),
     Input('signal-select', 'value'),
     Input('color-select', 'value'),
@@ -271,8 +271,8 @@ def make_signal_figure(signal_df, score_df, signal_name):
     Output('basic-interactions', 'figure', allow_duplicate=True),
     Output('window-select', 'options'),
     Output('window-select', 'value'),
-    Input("session-id", "data"),
-    Input("folder-name", "data"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
     Input('signal-select', 'value'),
     prevent_initial_call='initial_duplicate'
     )
@@ -300,8 +300,8 @@ def change_signal(session_id: str, folder_name: str, selected_signal):
 
 @callback(
     Output('basic-interactions', 'figure', allow_duplicate=True),
-    Input("session-id", "data"),
-    Input("folder-name", "data"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
     Input('window-select', 'value'),
     State('signal-select', 'value'),
     prevent_initial_call=True
@@ -321,8 +321,8 @@ def change_window_size(session_id: str, folder_name: str, select_window_size, se
 @callback(
     Output('hidden-graph2', 'figure'),
     Output('hidden-graph2-container', 'hidden', allow_duplicate=True),
-    Input("session-id", "data"),
-    Input("folder-name", "data"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
     Input('hidden-graph1', 'clickData'),
     State('signal-select', 'value'),
     State('basic-interactions', 'selectedData'),
