@@ -61,10 +61,8 @@ def compute_weighted_residual_norm(regression_results: pd.DataFrame, signal_list
         signal2_df = scores[y]
 
         # get the signals for the specified window length
-        signal1 = signal1_df[signal1_df["window"] == window_size][["timestamp", "value"]]
-        signal1.set_index("timestamp", inplace=True)
-        signal2 = signal2_df[signal2_df["window"] == window_size][["timestamp", "value"]]
-        signal2.set_index("timestamp", inplace=True)
+        signal1 = signal1_df.get_group(window_size)[["value"]]
+        signal2 = signal2_df.get_group(window_size)[["value"]]
 
         # check that the time stamps are regularly sampled (as we dropped the nan values)
         assert signal1.index.to_series().diff().iloc[1:].nunique() == 1, "Signal1 is irregular."
@@ -103,7 +101,7 @@ def compute_weighted_residual_norm(regression_results: pd.DataFrame, signal_list
 
     # make the overall dataframe
     result_df = pd.concat(residual_results, axis=1)
-    logger.info(f"[{__name__}] Computing the residuals took {time.perf_counter() - start:0.2f} s and {_iterations} iters. {coming_from=}.")
+    # logger.info(f"[{__name__}] Computing the residuals took {time.perf_counter() - start:0.2f} s and {_iterations} iters. {coming_from=}.")
     return result_df
 
 

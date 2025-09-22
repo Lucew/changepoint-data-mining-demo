@@ -9,7 +9,6 @@ import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-import pandas.api.typing as pdtypes
 import numpy as np
 from sklearn.manifold import TSNE
 
@@ -88,7 +87,7 @@ def filter_regression_results(session_id: str, folder_name: str,
                               correlation_threshold: float = None) -> (pd.DataFrame, pd.DataFrame, float):
     start = time.perf_counter()
     # get the preprocessed regression results
-    regression_results, _, complete_max_correlation = utl.preprocess_regression_results(session_id, folder_name)
+    regression_results, _, complete_max_correlation = prep.preprocess_regression_results(session_id, folder_name)
 
     # create default correlation threshold if not given
     if correlation_threshold is None:
@@ -112,7 +111,7 @@ def filter_regression_results(session_id: str, folder_name: str,
     return filtered_regression_results, filtered_distance_matrix, correlation_threshold
 
 
-@ucache.lru_cache(maxsize=2)
+@ucache.lru_cache(maxsize=1)
 def create_tsne(session_id: str, folder_name: str,
                 perplexity: int = None, correlation_threshold: float = None) -> (pd.DataFrame, int, float):
     # TODO: Recompute TSNE when different signals are selected
@@ -127,7 +126,7 @@ def create_tsne(session_id: str, folder_name: str,
     _, _, _, anomaly_scores, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
     # load the maximum threshold information and signal names
-    _, _, max_correlation = utl.preprocess_regression_results(session_id, folder_name)
+    _, _, max_correlation = prep.preprocess_regression_results(session_id, folder_name)
 
     # compute default perplexity
     # print("Parameters", session_id, folder_name, perplexity, correlation_threshold)
@@ -155,7 +154,7 @@ def create_tsne(session_id: str, folder_name: str,
                              'original': list(distance_matrix.columns),
                              'Max. Corr.': [f"{ele:0.3f} " for ele in
                                             list(max_correlation.loc[distance_matrix.columns]["correlation"])],
-                             'Anomaly Score': anomaly_scores.loc[distance_matrix.columns, 'score'],
+                             'Anomaly Score': anomaly_scores.loc[distance_matrix.columns, 'score'] if anomaly_scores is not None else [None]*transf.shape[0],
                              'block': [col[1:2] for col in list(distance_matrix.columns)],
                              'block_turbine': [col[1:3] for col in list(distance_matrix.columns)],
                              'turbine': [f'Steam [{col[2:3]}]' if col[2:3] == '0'
@@ -169,14 +168,16 @@ def create_tsne(session_id: str, folder_name: str,
     # print((bokeh_df.groupby("component")["x"].count()).median())
 
     # recompute the anomaly scores
-    rec_anomaly = bokeh_df.loc[:, 'Anomaly Score'].to_numpy()
-    rec_anomaly[np.isnan(rec_anomaly)] = 0
-    zeroless_mask = rec_anomaly != 0
-    zero_mask = ~zeroless_mask
-    rec_zeroless = np.log(rec_anomaly[zeroless_mask])
-    rec_anomaly[zero_mask] = rec_zeroless.min()
-    rec_anomaly[zeroless_mask] = rec_zeroless
-    rec_anomaly = (rec_anomaly - rec_anomaly.min()) / (rec_anomaly.max() - rec_anomaly.min())
+    rec_anomaly = [0]*transf.shape[0]
+    if anomaly_scores is not None:
+        rec_anomaly = bokeh_df.loc[:, 'Anomaly Score'].to_numpy()
+        rec_anomaly[np.isnan(rec_anomaly)] = 0
+        zeroless_mask = rec_anomaly != 0
+        zero_mask = ~zeroless_mask
+        rec_zeroless = np.log(rec_anomaly[zeroless_mask])
+        rec_anomaly[zero_mask] = rec_zeroless.min()
+        rec_anomaly[zeroless_mask] = rec_zeroless
+        rec_anomaly = (rec_anomaly - rec_anomaly.min()) / (rec_anomaly.max() - rec_anomaly.min())
     bokeh_df['opac'] = rec_anomaly
 
     logger.info(f"[{__name__}] Created TSNE ({perf_counter()-started:0.2f} s).")
@@ -259,7 +260,7 @@ def find_nearest_index(df: pd.DataFrame, time_start, time_end) -> (int, int):
 def make_histogram(session_id: str, folder_name: str, correlation_threshold: float):
 
     # load the regression results
-    _, _, complete_max_correlation = utl.preprocess_regression_results(session_id, folder_name)
+    _, _, complete_max_correlation = prep.preprocess_regression_results(session_id, folder_name)
 
     # make the histogram out of it
     fig = px.ecdf(complete_max_correlation, x="correlation", marginal="histogram", ecdfnorm=None)
@@ -290,7 +291,7 @@ def select_signals_scatter(session_id: str, folder_name: str, selected_data):
     selected_signals = [point["customdata"][0] for point in selected_data["points"]]
 
     # get the regression results
-    regression_results, _, _ = utl.preprocess_regression_results(session_id, folder_name)
+    regression_results, _, _ = prep.preprocess_regression_results(session_id, folder_name)
 
     # get the scores from the files
     scores, _, _, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
@@ -324,7 +325,7 @@ def click_signals_scatter(session_id: str, folder_name: str, click_data):
     selected_signal = [point["customdata"][0] for point in click_data["points"]][0]
 
     # get the regression results
-    _, extended_regression_results_grouped, _ = utl.preprocess_regression_results(session_id, folder_name)
+    _, extended_regression_results_grouped, _ = prep.preprocess_regression_results(session_id, folder_name)
 
     # get the score data from the files
     scores, _, _, _, _, raw_signals, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
@@ -557,7 +558,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
 
     # check whether we have all necessary data
     _, _, _, anomaly_scores, distances, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
-    if anomaly_scores is None or distances is None:
+    if distances is None:
         return html.H1("Your zip-file does not contain the anomaly_scores.parquet or/and the distances.csv file(s).")
 
     # define an event for our custom event listener to drag and drop buttons
@@ -581,6 +582,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
             html.H1(f'Change Decoupling Analyzer',
                     style={'fontSize': 40},
                     id='header'),
+            "⚠ Your file does not contain anomaly scores" if anomaly_scores is None else "",
             dbc.Accordion(children=[
                 dbc.AccordionItem(children=[html.Pre(text, className='pre-expl')], title="Explanation", )
             ],
@@ -600,7 +602,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                     dcc.Slider(min=0, max=0.95,
                                value=_global_corr_thresh,
                                id='correlation-slider',
-                               persistence="session"),
+                               ),
                 ],
                     title="Correlation Histogram", )
             ],
@@ -620,7 +622,6 @@ def layout(session_id: str, folder_name: str, **kwargs):
                                 _global_component_types,
                                 multi=True,
                                 id='component-select',
-                                persistence="session",
                             )
                         ],
                             title="Measurement Selection",
@@ -638,7 +639,6 @@ def layout(session_id: str, folder_name: str, **kwargs):
                                 _global_measurement_types,
                                 multi=True,
                                 id='measurement-select',
-                                persistence="session"
                             )
                         ],
                             title="Measurement Selection",
@@ -681,7 +681,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
             dcc.Slider(1, _global_bokeh_df.shape[0] // 2, 2,
                        value=_global_default_perplexity,
                        id='perplexity-slider',
-                       persistence="session"),
+                       ),
         ],
             style=styles['div'],
             hidden=False,

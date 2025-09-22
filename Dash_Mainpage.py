@@ -50,15 +50,54 @@ app = dash.Dash(__name__, use_pages=PAGED, external_stylesheets=external_stylesh
                 )
 app.title = "Changepoint"
 
+# prepare the folder
+def get_first_subfolder(path: str) -> tuple[str, str] | tuple[None, None]:
+    """
+    Return the first subfolder found inside 'path'.
+    If no subfolders exist, return None.
+    """
+    if not os.path.isdir(path):
+        raise ValueError(f"{path} is not a valid directory.")
+
+    for entry in os.listdir(path):
+        full_path = os.path.join(path, entry)
+        if os.path.isdir(full_path):
+            return full_path, entry  # return the first folder found
+    return None, None
+
+def init():
+
+    # get a session id
+    session_id = __name__ if APPLICATION_LEVEL == Level.DEBUG else str(uuid.uuid4())
+
+    # get the first subfolder
+    subfolder, relative_path = get_first_subfolder(DATA_FOLDER)
+    folder_name = ""
+    if subfolder is not None:
+        # set the session id to this folder
+        session_id = relative_path
+
+        # check for the content of the already existing data
+        subsubfolder, relative_path = get_first_subfolder(subfolder)
+        if subsubfolder is not None:
+            folder_name = relative_path
+
+    file_name = "already-there"
+    upload_status = "already-there"
+    return session_id, folder_name, file_name, upload_status
+
+# initialize the store variables
+__session_id, __folder_name, __file_name, __upload_status = init()
+
 # App layout
 side_bar_content = dbc.Container([
     html.Div(html.H1("Changepoint", className="my-4 text-center")),
 
     # give the session an id and save the files
-    dcc.Store(data=__name__ if APPLICATION_LEVEL == Level.DEBUG else str(uuid.uuid4()), id='session-id', storage_type='session'),
-    dcc.Store(data="", id='file-name', storage_type='session'),
-    dcc.Store(data="", id='folder-name', storage_type='session'),
-    dcc.Store(data="", id='upload-status', storage_type='session'),
+    dcc.Store(data=__session_id, id='session-id', storage_type='session'),
+    dcc.Store(data=__file_name, id='file-name', storage_type='session'),
+    dcc.Store(data=__folder_name, id='folder-name', storage_type='session'),
+    dcc.Store(data=__upload_status, id='upload-status', storage_type='session'),
 
     # Upload component
     html.Div([
@@ -310,7 +349,7 @@ def available_files(session_id: str, folder_name: str, filename: str, upload_sta
     button_disabled = not file_exists
 
     # check the text for the filename
-    upload_text = f"✅ Uploaded" if file_exists else DEFAULT_UPLOAD_TEXT
+    upload_text = DEFAULT_UPLOAD_TEXT_SUCCESS if file_exists else DEFAULT_UPLOAD_TEXT
 
     # the sidebar symbol
     sidebar_symbol = "✔" if file_exists else ("☝" if not upload_status else "❌")

@@ -199,3 +199,6 @@ data/sequences/
 
 # ignore plots
 *.pgf
+
+# ignore the data files
+tmp-data-folder

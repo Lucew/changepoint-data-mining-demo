@@ -53,24 +53,20 @@ def get_score_information(session_id: str, folder_name: str):
     # get the scores from memory to preprocess them
     scores, _, _, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
-    # group the scores by their window size
-    scores = {name: df.set_index('timestamp').sort_index().groupby('window') for name, df in scores.items()}
-
     # get the minimum, maximum, mean and std of each score
     score_information = pd.DataFrame(index=pd.MultiIndex.from_tuples([(name, ws)
                                                                       for name in scores.keys()
                                                                       for ws in scores[name].groups.keys()]),
                                      columns=['Minimum', 'Maximum', 'Mean', 'Median', 'Std'])
+
     for name, grouped_df in tqdm(scores.items(), desc='Compute the Information'):
+        aggregations = grouped_df.agg(['min', 'max', 'mean', 'median', 'std'])
         for ws in grouped_df.groups.keys():
-            df = grouped_df.get_group(ws)
-            score_information.loc[(name, ws), :] = [df['value'].min(), df['value'].max(), df['value'].mean(),
-                                                    df['value'].median(), df['value'].std()]
+            score_information.loc[(name, ws), :] = aggregations.loc[ws, :]
 
     # get the window sizes we computed
-    scores_grouped = scores
     logger.info(f"[{__name__}] Preprocessed data in {time.perf_counter() - start:0.2f} s.")
-    return scores_grouped, score_information
+    return score_information
 
 
 @callback(
@@ -137,7 +133,8 @@ def find_others(session_id: str, folder_name: str, start, end, selected_signal, 
     _start = time.perf_counter()
 
     # get the data
-    scores_grouped, score_information = get_score_information(session_id, folder_name)
+    score_information = get_score_information(session_id, folder_name)
+    scores_grouped, _, _, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
     signal_names = list(scores_grouped.keys())
 
     # get the timezone of the selected signal
@@ -266,54 +263,20 @@ def make_signal_figure(signal_df, score_df, signal_name):
     return fig
 
 
-
 @callback(
-    Output('basic-interactions', 'figure', allow_duplicate=True),
-    Output('window-select', 'options'),
-    Output('window-select', 'value'),
-    State("session-id", "data"),
-    State("folder-name", "data"),
-    Input('signal-select', 'value'),
-    prevent_initial_call='initial_duplicate'
-    )
-def change_signal(session_id: str, folder_name: str, selected_signal):
-
-    # get the signal data and grouped score data
-    _, _, _, _, _, raw_signals_grouped, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
-    scores_grouped, score_information = get_score_information(session_id, folder_name)
-
-    # get the signal and score data
-    signal = raw_signals_grouped.get_group(selected_signal)
-    scores = scores_grouped[selected_signal]
-
-    # get the number of windows we computed for the signal
-    ws_sizes = sorted(list(scores.groups.keys()))
-
-    # get the corresponding score
-    score = scores.get_group(ws_sizes[0])
-
-    # make the figure
-    fig = make_signal_figure(signal, score, selected_signal)
-
-    return fig, ws_sizes, ws_sizes[0]
-
-
-@callback(
-    Output('basic-interactions', 'figure', allow_duplicate=True),
+    Output('basic-interactions', 'figure'),
     State("session-id", "data"),
     State("folder-name", "data"),
     Input('window-select', 'value'),
-    State('signal-select', 'value'),
-    prevent_initial_call=True
+    Input('signal-select', 'value'),
     )
 def change_window_size(session_id: str, folder_name: str, select_window_size, selected_signal):
     # get the signal data and grouped score data
-    _, _, _, _, _, raw_signals_grouped, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
-    scores_grouped, score_information = get_score_information(session_id, folder_name)
+    scores, _, _, _, _, raw_signals_grouped, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
     # get the signal and score data
     signal = raw_signals_grouped.get_group(selected_signal)
-    score = scores_grouped[selected_signal].get_group(select_window_size)
+    score = scores[selected_signal].get_group(select_window_size)
 
     return make_signal_figure(signal, score, selected_signal)
 
@@ -321,6 +284,7 @@ def change_window_size(session_id: str, folder_name: str, select_window_size, se
 @callback(
     Output('hidden-graph2', 'figure'),
     Output('hidden-graph2-container', 'hidden', allow_duplicate=True),
+    Output('hidden-graph2-text', 'children'),
     State("session-id", "data"),
     State("folder-name", "data"),
     Input('hidden-graph1', 'clickData'),
@@ -330,7 +294,7 @@ def change_window_size(session_id: str, folder_name: str, select_window_size, se
 def display_click_data(session_id: str, folder_name: str, click_data, selected_signal, selected_data):
     # check whether we clicked a point
     if not click_data or not click_data['points'] or not selected_data or not selected_data['points']:
-        return {}, True
+        return {}, True, ""
 
     # get the minimum and maximum of all the selected points
     start = min(pd.Timestamp(point['x']) for point in selected_data['points'])
@@ -366,7 +330,7 @@ def display_click_data(session_id: str, folder_name: str, click_data, selected_s
         secondary_y=True,
     )
 
-    return fig, False
+    return fig, False, f"Selected {selected_signal} & {cmpsig_name}"
 
 
 def layout(session_id: str, folder_name: str, **kwargs):
@@ -376,12 +340,11 @@ def layout(session_id: str, folder_name: str, **kwargs):
         return html.H1("Please upload a file using the sidebar.")
 
     # check whether we have all necessary data
-    _, _, _, _, _, _, raw_signal_correlations = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+    scores, _, window_sizes, _, _, _, raw_signal_correlations = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
     if raw_signal_correlations is None:
         return html.H1("Your file does not contain the 'signal_correlation.parquet' file.")
 
     # get some of the data to fill in the blanks and first selections
-    scores, _, _, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
     signal_names = list(scores.keys())
 
     layout_definition = html.Div([
@@ -404,7 +367,6 @@ def layout(session_id: str, folder_name: str, **kwargs):
                             multi=False,
                             clearable=False,
                             style=styles['dropdown'],
-                            persistence="session",
                         ),
                     ],
                         style={"width": "100%"}
@@ -413,12 +375,11 @@ def layout(session_id: str, folder_name: str, **kwargs):
                         'Window Size',
                         dcc.Dropdown(
                             id="window-select",
-                            options=[0, 1],
-                            value=0,
+                            options=window_sizes,
+                            value=min(window_sizes),
                             multi=False,
                             clearable=False,
                             style=styles['dropdown'],
-                            persistence="session",
                         ),
                     ],
                         style={"width": "100%"}
@@ -428,11 +389,10 @@ def layout(session_id: str, folder_name: str, **kwargs):
                         dcc.Dropdown(
                             id="method-select",
                             options=["Pearson Correlation", "Spearman Correlation", "Activity"],
-                            value="Pearson Correlation",
+                            value="Spearman Correlation",
                             multi=False,
                             clearable=False,
                             style=styles['dropdown'],
-                            persistence="session",
                         ),
                     ],
                         style={"width": "100%"}
@@ -460,7 +420,6 @@ def layout(session_id: str, folder_name: str, **kwargs):
                 multi=False,
                 clearable=False,
                 style={key: val if key != 'width' else '50%' for key, val in styles['dropdown'].items()},
-                persistence="session",
             )
         ],
             style=styles['div'],
@@ -468,6 +427,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
             id='hidden-graph1-container'
         ),
         html.Div(children=[
+            html.Div(children=[], id='hidden-graph2-text'),
             dcc.Graph(
                 id='hidden-graph2',
                 figure={}
@@ -493,3 +453,6 @@ def layout(session_id: str, folder_name: str, **kwargs):
     ],
     )
     return layout_definition
+
+if __name__ == '__main__':
+    get_score_information("download_zip", "2025-09-10T143441Z_df_raw_lucas")

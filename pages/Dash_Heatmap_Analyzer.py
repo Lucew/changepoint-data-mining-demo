@@ -1,5 +1,6 @@
 import logging
 import time
+import functools
 
 import plotly.graph_objs
 from dash import dcc, html, Input, Output, State, ctx, ClientsideFunction, register_page, clientside_callback, callback
@@ -65,12 +66,13 @@ def draw_heatmap(data: pd.DataFrame):
     return fig
 
 
-@ucache.lru_cache(5)
-def process_signals(session_id: str, folder_name: str, window_size: str = None, signal_list: tuple[str] = None, normalization_window_size: int = None) -> tuple[pd.DataFrame, pd.DataFrame, int, tuple[int]]:
+@ucache.lru_cache(1)
+def process_signals(session_id: str, folder_name: str, window_size: str = None, signal_list: tuple[str] = None, normalization_window_size: int = None) -> tuple[pd.DataFrame, int, tuple[int]]:
     start = time.perf_counter()
+    assert signal_list is None or len(signal_list) > 0, 'You have to select signals.'
 
     # get the data from memory
-    scores, signal_df, window_sizes, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+    scores, _, window_sizes, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
     # get the smallest window size if None is given
     if window_size is None:
@@ -79,13 +81,12 @@ def process_signals(session_id: str, folder_name: str, window_size: str = None, 
 
     # select the signals
     if signal_list:
-        signal_df = signal_df[list(signal_list)]
         signal_list = set(signal_list)
         scores = {name: df for name, df in scores.items() if name in signal_list}
 
     # get the score for the defined window size
-    scores = {name: df.loc[df["window"] == window_size].set_index("timestamp")["value"] for name, df in scores.items()}
-    score_df = pd.concat(scores, axis=1)
+    scores = {name: df.get_group(window_size)[["value"]].rename(columns={'value': name}) for name, df in scores.items()}
+    score_df = functools.reduce(lambda left, right: pd.merge(left, right, on='timestamp', how='outer'), scores.values())
 
     # normalize the score
     score_df = prep.normalization(score_df, window_length=normalization_window_size)
@@ -96,15 +97,14 @@ def process_signals(session_id: str, folder_name: str, window_size: str = None, 
 
     # transform the index into a pandas timestamp
     score_df.index = pd.to_datetime(score_df.index)
-    signal_df.index = pd.to_datetime(signal_df.index)
 
     logger.info(f"[{__name__}] Preprocessed data in {time.perf_counter() - start:0.2f} s. Parameters: {window_size=}, {signal_list=}, {normalization_window_size=}")
-    return score_df, signal_df, window_size, window_sizes
+    return score_df, window_size, window_sizes
 
 
 def create_heatmap(session_id: str, folder_name: str, window_size: int = None, signal_list: tuple[str] = None, normalization_window_size: int = None) -> plotly.graph_objs.Figure:
     # read the signals
-    score_df, signal_df, _, _ = process_signals(session_id=session_id, folder_name=folder_name, window_size=window_size, signal_list=signal_list, normalization_window_size=normalization_window_size)
+    score_df, _, _ = process_signals(session_id=session_id, folder_name=folder_name, window_size=window_size, signal_list=signal_list, normalization_window_size=normalization_window_size)
 
     # make the figure
     fig = draw_heatmap(score_df)
@@ -165,7 +165,13 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
         return html.H1("Please upload a file using the sidebar.")
 
     # load the data into memory to get some information
-    score_df, signal_df, window_size, window_sizes = process_signals(session_id=session_id, folder_name=folder_name)
+    scores, _, window_sizes, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+    score_df, _, _ = process_signals(session_id=session_id, folder_name=folder_name, window_size=min(window_sizes))
+    window_size = min(window_sizes)
+
+    # check whether there are too many sensors
+    if len(scores) > 100:
+        return html.H1(f"There are too many sensors ({len(scores)=}) reduce to 50 or less.")
 
     # create the heatmap figure
     figure = create_heatmap(session_id=session_id, folder_name=folder_name, window_size=window_size)
@@ -352,10 +358,8 @@ def delete_shapes(delete_all, current_figure, relayoutData, all_children,
             normalization_size = None
         else:
             normalization_size = abs(normalization_size)
-    score_df, df, _, _ = process_signals(session_id, folder_name,
-                                         window_size=window_size,
-                                         signal_list=tuple(new_cols),
-                                         normalization_window_size=normalization_size)
+    score_df, _, _ = process_signals(session_id, folder_name, window_size=window_size, signal_list=tuple(new_cols),
+                                     normalization_window_size=normalization_size)
 
     # get existing shapes and sort out all that are not rect
     if len(current_figure['data'][0]['y']) == len(new_cols):

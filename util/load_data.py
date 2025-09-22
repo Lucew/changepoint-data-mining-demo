@@ -3,12 +3,14 @@ import typing
 import logging
 import shutil
 import time
+import json
 
 import pandas as pd
 import pandas.api.typing as pdtypes
+import pyarrow.parquet as pq
+from tqdm import tqdm
 
 import util.cache_registry as ucache
-from GLOBALS import *
 
 
 # get the logger
@@ -16,28 +18,49 @@ logger = logging.getLogger("frontend-logger")
 
 
 @ucache.lru_cache(1)
-def load_data(folder_path: str) -> tuple[dict[str: pd.DataFrame], pd.DataFrame, tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
+def load_data(folder_path: str, mock_signals: bool = False, reduce_count: int = 75) -> tuple[dict[str: pdtypes.DataFrameGroupBy], dict[str: pd.DataFrame], tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
     start = time.perf_counter()
+
+    # read the configuration
+    config = json.load(open(os.path.join(folder_path, "params.json")))
+    config_window_sizes = tuple(sorted(config['window_sizes']))
+    raw_signals_path = os.path.join(folder_path, config["input"]["filename"])
 
     # get all the different files from the folder
     files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+    score_files = [filename for filename in files if filename.endswith('.parquet') and filename.startswith('@')]
+    signal_files = [filename for filename in files if filename.endswith('.parquet') and filename.startswith('resamp')]
+
+    score_files_set = None
+    if reduce_count is not None and 0 < reduce_count < len(score_files):
+
+        # get the score files we want to use
+        score_files = score_files[:reduce_count]
+
+        # get the names of the signals we have
+        score_files_set = set(os.path.splitext(os.path.split(file)[-1])[0] for file in score_files)
+
+        # file the signal files
+        signal_files = [file for file in signal_files if os.path.splitext(os.path.split(file)[-1])[0].split('_')[1] in score_files_set]
 
     # load the scoring dataframes into dictionary
-    scores = {os.path.splitext(filename)[0]: pd.read_parquet(os.path.join(folder_path, filename)) for filename in files
-              if filename.endswith('.parquet') and filename.startswith('@')}
+    scores = {os.path.splitext(filename)[0]: pd.read_parquet(os.path.join(folder_path, filename)).drop(columns="signal") for filename in tqdm(score_files, desc='Loading the Scores')}
 
     # go through the scores signals and restrict to maximum starting point and minimum ending point
     max_start = max(score["timestamp"].min() for score in scores.values())
     min_end = min(score["timestamp"].max() for score in scores.values())
 
     # get the window sizes
-    window_sizes = {tuple(df["window"].unique()) for df in scores.values()}
+    window_sizes: dict[str: pd.DataFrame] = {tuple(sorted(int(ele) for ele in df["window"].unique())) for df in scores.values()}
     assert len(window_sizes) == 1, "Some Signals have different window sizes."
     window_sizes = window_sizes.pop()
-
+    assert window_sizes == config_window_sizes, "Some Signals have different window sizes than specified in config."
 
     # restrict the scores and check that they have the same starting and end points
-    scores = {name: score.loc[score["timestamp"].between(max_start, min_end)] for name, score in scores.items()}
+    # scores = {name: score.loc[score["timestamp"].between(max_start, min_end)] for name, score in scores.items()}
+
+    # group the scores by the window sizes and set the timestamp as index
+    scores = {name: score.set_index("timestamp").sort_index().groupby("window", sort=False) for name, score in tqdm(scores.items(), desc='Grouping Scores')}
 
     # load the anomaly scores if they are available
     anomaly_score_path = os.path.join(folder_path, 'anomaly_scores.parquet')
@@ -51,6 +74,10 @@ def load_data(folder_path: str) -> tuple[dict[str: pd.DataFrame], pd.DataFrame, 
     if os.path.exists(distances_path):
         distances = pd.read_csv(distances_path)
 
+    # sort out the distances
+    if score_files_set is not None:
+        distances = distances[distances['x'].isin(score_files_set) & distances['y'].isin(score_files_set)]
+
     # load the signal correlations if they are available
     raw_signal_correlations_path = os.path.join(folder_path, 'signal_correlation.parquet')
     raw_signal_correlations = None
@@ -58,54 +85,49 @@ def load_data(folder_path: str) -> tuple[dict[str: pd.DataFrame], pd.DataFrame, 
         raw_signal_correlations = pd.read_parquet(raw_signal_correlations_path)
 
     # get the raw signals (currently just mock data from the scores)
-    signals = {}
-    indexer = None
-    for name, score in scores.items():
+    if mock_signals:
+        signals = {}
+        indexer = None
+        for name, score in scores.items():
 
-        # get the window sizes
-        ws = min(score["window"].unique())
+            # get the window sizes
+            print(score["window"].unique())
+            ws = min(score["window"].unique())
 
-        # get only the values where the minimum window size is there and make it as the signal
-        restricted_df = score.loc[score["window"]==ws, "value"]
-        indexer = score.loc[score["window"]==ws, "timestamp"]
-        signals[name] = restricted_df.to_numpy()
-    signals = pd.DataFrame(signals)
-    signals.index = indexer
+            # get only the values where the minimum window size is there and make it as the signal
+            restricted_df = score.get_group(ws)["value"]
+            indexer = score.get_group(ws)["timestamp"]
+            signals[name] = restricted_df.to_numpy()
+        signals = pd.DataFrame(signals)
+        signals.index = indexer
 
-    # get the raw signals (currently just mock data from the scores)
-    raw_signals = signals.melt(value_name="value", var_name="sensor", ignore_index=False)
+        # get the raw signals (currently just mock data from the scores)
+        raw_signals = signals.melt(value_name="value", var_name="sensor", ignore_index=False)
+    else:
+
+        # load the raw signals into memory
+        raw_signals = pd.read_parquet(raw_signals_path)
+
+        # drop the signals we do not want to have
+        if score_files_set is not None:
+            raw_signals = raw_signals[raw_signals['sensor'].isin(score_files_set)]
+
+        # load the resampled data
+        signals: dict[str: pd.DataFrame]
+        signals = {os.path.splitext(filename)[0].split("_")[1]: pd.read_parquet(os.path.join(folder_path, filename))
+                   for filename in tqdm(signal_files, desc='Loading the Signals')}
 
     # make the zscore normalization by group
     # https://pandas.pydata.org/pandas-docs/stable/user_guide/groupby.html#transformation
-    raw_signals.loc[:, "normalized value"] = raw_signals.groupby("sensor").transform(lambda x: (x - x.min()) / (xminmax if (xminmax := x.max()-x.min()) != 0 else 1))["value"]
+    logger.info(f"[{__name__}] Normalizing the signals (@{time.perf_counter() - start:0.2f} s).")
+    raw_signals.loc[:, "normalized value"] = raw_signals.groupby("sensor", sort=False)[["value"]].transform(lambda x: (x - x.min()) / (xminmax if (xminmax := x.max()-x.min()) != 0 else 1))
 
     # sort the signals and create the groups
     raw_signals = raw_signals.sort_index(ascending=True)
-    raw_signals_grouped = raw_signals.groupby("sensor")
+    raw_signals_grouped = raw_signals.groupby("sensor", sort=False)
 
     logger.info(f"[{__name__}] Loaded data files into cache from disk {time.perf_counter() - start:0.2f} s.")
     return scores, signals, window_sizes, anomaly_scores, distances, raw_signals_grouped, raw_signal_correlations
-
-
-@ucache.lru_cache(maxsize=1)
-def preprocess_regression_results(session_id: str, folder_name: str) -> (pd.DataFrame, pdtypes.DataFrameGroupBy,
-                                                                         pd.Series):
-    start = time.perf_counter()
-    # load the regression results from the raw files
-    _, _, _, _, regression_results, _, _ = load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
-
-    # extend the regression results so every sensor is in x and y
-    complete_regression_results = pd.concat((regression_results,
-                                             regression_results.rename(columns={"x": "y", "y": "x"})),
-                                            ignore_index=True)
-
-    # group the flattened regression results by the tag
-    complete_regression_results_grouped = complete_regression_results.groupby("x")
-
-    # find the maximum correlation per signal tag
-    complete_max_correlation = complete_regression_results_grouped.max()
-    logger.info(f"[{__name__}]  Preprocessed regression results in {time.perf_counter() - start:0.2f} s.")
-    return complete_regression_results, complete_regression_results_grouped, complete_max_correlation
 
 
 def folder_size_bytes(root_path: str) -> int:
@@ -156,4 +178,6 @@ def delete_all_files_in_root(root_path: str) -> int:
 
 
 if __name__ == '__main__':
-    load_data(r"C:\Users\lucas\Downloads\2025-07-23T095510Z_Keadby")
+    # load_data(r"C:\Users\lucas\Downloads\2025-07-23T095510Z_Keadby")
+    logging.basicConfig(level=logging.DEBUG)
+    load_data(r"C:\Users\lucas\PycharmProjects\changepoint-analysis-frontends\tmp-data-folder\download_zip\2025-09-10T143441Z_df_raw_lucas")

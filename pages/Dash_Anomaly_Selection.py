@@ -9,11 +9,13 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from tqdm import tqdm
 
 import util.load_data as utl
 from GLOBALS import *
 import util.cache_registry as ucache
 import util.residuals as procd
+import util.prepocessing as uprep
 
 
 # register the page to our application
@@ -66,12 +68,12 @@ def table_type(df_column):
         return 'any'
 
 
-@ucache.lru_cache(maxsize=5)
-def get_anomaly_data(session_id: str, folder_name: str, scoring_fn, k_neighbors: int = 3, correlation_threshold: float = 0.85) -> (int, float, pd.DataFrame, dict[str: pd.DataFrame], dict[str: pd.DataFrame]):
+@ucache.lru_cache(maxsize=1)
+def get_anomaly_data(session_id: str, folder_name: str, scoring_fn, k_neighbors: int, correlation_threshold: float) -> (pd.DataFrame, dict[str: pd.DataFrame], dict[str: pd.DataFrame]):
     start = time.perf_counter()
 
     # get the data from the disk
-    _, regression_results_grouped, max_correlation = utl.preprocess_regression_results(session_id, folder_name)
+    _, regression_results_grouped, max_correlation = uprep.preprocess_regression_results(session_id, folder_name)
     scores, _, _, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
     # build the dataframe we want to create
@@ -88,7 +90,9 @@ def get_anomaly_data(session_id: str, folder_name: str, scoring_fn, k_neighbors:
                        }
     top_n_grouped = dict()
     residual_scores = dict()
-    for idx, (name, anomaly_score) in enumerate(regression_results_grouped, 1):
+    __text = "Computing Anomaly Scores"
+    __total = len(regression_results_grouped)
+    for idx, (name, anomaly_score) in tqdm(enumerate(regression_results_grouped, 1), desc=__text, total=__total):
 
         # check for the largest correlation to any other neighbor
         if max_correlation.loc[name, "correlation"] < correlation_threshold:
@@ -133,7 +137,7 @@ def get_anomaly_data(session_id: str, folder_name: str, scoring_fn, k_neighbors:
     data_collection.sort_values("Anomaly Score", ascending=False, inplace=True)
 
     logger.info(f"[{__name__}] Creating the anomaly selection dataframe took {time.perf_counter() - start:0.2f} s.")
-    return k_neighbors, correlation_threshold, data_collection, top_n_grouped, residual_scores
+    return data_collection, top_n_grouped, residual_scores
 
 
 def layout(session_id: str = "", folder_name: str="", **kwargs):
@@ -143,19 +147,22 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
         return html.H1("Please upload a file using the sidebar.")
 
     # check whether we have all necessary data
-    _, _, _, anomaly_scores, distances, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
-    if anomaly_scores is None or distances is None:
-        return html.H1(
-            "Your zip-file does not contain the anomaly_scores.parquet or/and the distances.csv file(s).")
+    _, _, _, _, distances, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+    if distances is None:
+        return html.H1("Your zip-file does not contain the the distances.csv file(s).")
 
     # get the scoring function
     scoring_fns = procd.get_registered_scoring_functions()
     standard_scoring_fn_name, _ = procd.get_standard_scoring_functions()
 
+    # get the regression results
+    _, regression_results_grouped, max_correlation = uprep.preprocess_regression_results(session_id, folder_name)
+    k_neighbors_list = list(range(1, regression_results_grouped.size().max() + 1))
+    k_neighbors = min(k_neighbors_list[-1], 3)
+    corr_thresh = 0.85
+
     # get the preprocessed data
-    k_neighbors, correlation_threshold, data_collection, _, _ = get_anomaly_data(session_id, folder_name, standard_scoring_fn_name)
-    _, regression_results_grouped, _ = utl.preprocess_regression_results(session_id, folder_name)
-    k_neighbors_list = list(range(1, regression_results_grouped.size().max()+1))
+    data_collection, _, _ = get_anomaly_data(session_id, folder_name, standard_scoring_fn_name, k_neighbors, corr_thresh)
 
     # get the explanation text from the file
     text = "Do not know what to write here yet."
@@ -173,14 +180,13 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
                     start_collapsed=True,
                 ),
                 "How many neighors do you want to check?",
-                dbc.Select(id="select-neighbor-size", options=sorted(k_neighbors_list), value=min(k_neighbors_list[-1], k_neighbors), persistence="session"),
-                html.Div(children=f'Correlation Value: {correlation_threshold}', id='anomaly-selection-corr-val-div'),
-                dcc.Slider(min=0, max=0.99,
-                           value=correlation_threshold,
-                           id='anomaly-selection-correlation-slider',
-                           persistence="session"),
+                dbc.Select(id="select-neighbor-size", options=sorted(k_neighbors_list), value=k_neighbors),
+                html.Div(children=f'Correlation Value: {corr_thresh}', id='anomaly-selection-corr-val-div'),
+                dcc.Slider(min=0, max=0.95,
+                           value=corr_thresh,
+                           id='anomaly-selection-correlation-slider', step=0.05),
                 "Choose scoring function",
-                dbc.Select(id="select-scoring-fn", options=list(scoring_fns.keys()), value=standard_scoring_fn_name, persistence="session"),
+                dbc.Select(id="select-scoring-fn", options=list(scoring_fns.keys()), value=standard_scoring_fn_name),
             ],
                 style=dash_heatmap_styles['div'],
             ),
@@ -214,6 +220,18 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
                                                   page_action="native",
                                                   page_current=0,
                                                   page_size=10,
+                                                  style_cell={
+                                                      'overflow': 'hidden',
+                                                      'textOverflow': 'ellipsis',
+                                                      'maxWidth': 0
+                                                  },
+                                                  tooltip_data=[
+                                                      {
+                                                          column: {'value': str(value), 'type': 'markdown'}
+                                                          for column, value in row.items()
+                                                      } for row in data_collection.to_dict('records')
+                                                  ],
+                                                  tooltip_duration=None
                                                   )
                     ]
                 ),
@@ -276,7 +294,8 @@ def adapt_anomaly_data(session_id: str, folder_name: str, k_neighbors: str, corr
 
     # process the files
     k_neighbors = int(k_neighbors)
-    _, _, data_collection, _, _ = get_anomaly_data(session_id, folder_name, scoring_fn_name, k_neighbors, correlation_threshold)
+    correlation_threshold = float(correlation_threshold)
+    data_collection, _, _ = get_anomaly_data(session_id, folder_name, scoring_fn_name, k_neighbors, correlation_threshold)
     return f'Correlation Value: {correlation_threshold}', data_collection.to_dict('records')
 
 
@@ -303,7 +322,8 @@ def create_selection(session_id: str, folder_name: str, selected_rows, data, k_n
     k_neighbors = int(k_neighbors)
 
     # get the anomaly residuals
-    _, _, _, top_n_grouped, residual_scores = get_anomaly_data(session_id, folder_name, scoring_fn_name, k_neighbors, correlation_thresh)
+    correlation_thresh = float(correlation_thresh)
+    _, top_n_grouped, residual_scores = get_anomaly_data(session_id, folder_name, scoring_fn_name, k_neighbors, correlation_thresh)
 
     # get the scores and raw signals
     _, _, _, _, _, raw_signals_grouped, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
