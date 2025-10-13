@@ -18,7 +18,7 @@ logger = logging.getLogger("frontend-logger")
 
 
 @ucache.lru_cache(1)
-def load_data(folder_path: str, mock_signals: bool = False, reduce_count: int = 75) -> tuple[dict[str: pdtypes.DataFrameGroupBy], dict[str: pd.DataFrame], tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
+def load_data(folder_path: str, mock_signals: bool = False, reduce_count: int = 25) -> tuple[dict[str: pdtypes.DataFrameGroupBy], dict[str: pd.DataFrame], tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
     start = time.perf_counter()
 
     # read the configuration

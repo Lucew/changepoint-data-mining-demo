@@ -389,6 +389,7 @@ def delete_shapes(delete_all, current_figure, relayoutData, all_children,
 
     # check whether we pressed the delete button
     if 'delete-button-all' == ctx.triggered_id:
+        logger.info(f"[{__name__}] Delete all shapes {ctx.triggered_id}, {ctx.inputs}")
         shapes.clear()
 
     # update the shape accordingly (by snapping to complete integers) and only keep shapes that we like
@@ -406,6 +407,9 @@ def delete_shapes(delete_all, current_figure, relayoutData, all_children,
         if 'texttemplate' in shape['label']:
             del shape['label']['texttemplate']
 
+    # get the signals
+    _, _, _, _, _, raw_signals_grouped, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+
     # make the other plots for each of the shapes
     all_children.clear()
     for idx, shape in enumerate(shapes):
@@ -415,17 +419,18 @@ def delete_shapes(delete_all, current_figure, relayoutData, all_children,
         column_end = round(shape['y1'])
         column_start, column_end = sorted((column_start, column_end))
         column_start = max(column_start, 0)
-        column_end = min(column_end, len(df.columns)-1)
+        column_end = min(column_end, len(score_df.columns)-1)
 
         # get the time we need to select (depending on where we start, one of the shapes is the larger one)
         time_start = shape['x0']
         time_end = shape['x1']
-        start_idx, end_idx = sorted(df.index.get_indexer([pd.Timestamp(time_start),
-                                                          pd.Timestamp(time_end)], method='nearest'))
+        start_idx, end_idx = sorted((time_start, time_end), key= lambda x: pd.Timestamp(x))
+        # start_idx, end_idx = sorted([pd.Timestamp(time_start), pd.Timestamp(time_end)])
+        # create the new dataframe
+        df = pd.concat((raw_signals_grouped.get_group(group).loc[start_idx:end_idx, ['normalized value', 'sensor']] for group in score_df.columns[column_start:column_end]))
 
         # make a figure and plot all the signals
-        fig = px.line(df.iloc[start_idx:end_idx], x=df.iloc[start_idx:end_idx].index,
-                      y=new_cols[column_start:column_end+1])
+        fig = px.line(df, x=df.index, y='normalized value', color='sensor')
         fig.update_layout(xaxis_title='Time', yaxis_title='Signal Value (MinMax normalized)')
 
         all_children.append(html.Div(children=[html.H3(f"Signals for Selection {idx+1}"),

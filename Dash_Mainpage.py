@@ -121,7 +121,7 @@ side_bar_content = dbc.Container([
     html.Div(
         id="page-button-grid",
         children=[
-            dbc.Button(title, href=f"/{title.lower()}", style={"margin": "1px"})
+            dbc.Button(title, href=f"/{title.lower()}", style={"margin": "1px"}, id={"type": "disable-btn", "index": title}, disabled=True)
             for title, desc in page_info.items()
         ],
     ),
@@ -355,6 +355,15 @@ def available_files(session_id: str, folder_name: str, filename: str, upload_sta
     sidebar_symbol = "✔" if file_exists else ("☝" if not upload_status else "❌")
 
     return button_disabled, page_link_style, page_button_style, upload_text, sidebar_symbol
+
+
+@app.callback(
+    Output({"type": "disable-btn", "index": dash.ALL}, "disabled"),
+    Input("delete-file-button", "disabled"),
+    State({"type": "disable-btn", "index": dash.ALL}, "disabled"),
+)
+def modify_sidebar_buttons(status: bool, button_ids: list):
+    return [status]*len(button_ids)
 
 
 # --- Open modal when "Delete ALL Files." is clicked ---
