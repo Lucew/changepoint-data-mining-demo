@@ -16,6 +16,9 @@ PAGED = True
 DEFAULT_UPLOAD_TEXT = "📤 Please upload your ZIP file"
 DEFAULT_UPLOAD_TEXT_SUCCESS = f"✅ Uploaded"
 
+# define a reduced sensor set
+MAX_SIGNALS = 800
+
 # check whether the data folder exists
 if not os.path.isdir(DATA_FOLDER):
     raise ValueError(f"{DATA_FOLDER=} is not a valid directory.")

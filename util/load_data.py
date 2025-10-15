@@ -7,10 +7,10 @@ import json
 
 import pandas as pd
 import pandas.api.typing as pdtypes
-import pyarrow.parquet as pq
 from tqdm import tqdm
 
 import util.cache_registry as ucache
+from GLOBALS import *
 
 
 # get the logger
@@ -18,8 +18,12 @@ logger = logging.getLogger("frontend-logger")
 
 
 @ucache.lru_cache(1)
-def load_data(folder_path: str, mock_signals: bool = False, reduce_count: int = 25) -> tuple[dict[str: pdtypes.DataFrameGroupBy], dict[str: pd.DataFrame], tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
+def load_data(folder_path: str, mock_signals: bool = False, reduce_count: typing.Optional[int] = None) -> tuple[dict[str: pdtypes.DataFrameGroupBy], dict[str: pd.DataFrame], tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
     start = time.perf_counter()
+
+    # check whether we wanted to reduce the count
+    if reduce_count is None:
+        reduce_count = MAX_SIGNALS
 
     # read the configuration
     config = json.load(open(os.path.join(folder_path, "params.json")))
@@ -28,7 +32,7 @@ def load_data(folder_path: str, mock_signals: bool = False, reduce_count: int = 
 
     # get all the different files from the folder
     files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
-    score_files = [filename for filename in files if filename.endswith('.parquet') and filename.startswith('@')]
+    score_files = [filename for filename in files if filename.endswith('.parquet') and (filename.startswith('@') or (filename[:2].isnumeric() and filename[5:7].isnumeric()))]
     signal_files = [filename for filename in files if filename.endswith('.parquet') and filename.startswith('resamp')]
 
     score_files_set = None
