@@ -54,17 +54,23 @@ def get_score_information(session_id: str, folder_name: str):
     scores, _, _, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
     # get the minimum, maximum, mean and std of each score
-    score_information = pd.DataFrame(index=pd.MultiIndex.from_tuples([(name, ws)
-                                                                      for name in scores.keys()
-                                                                      for ws in scores[name].groups.keys()]),
-                                     columns=['Minimum', 'Maximum', 'Mean', 'Median', 'Std'])
-
+    value_dict = {'name': [], 'ws': [], 'min': [], 'max': [], 'mean': [], 'median': [], 'std':[]}
     for name, grouped_df in tqdm(scores.items(), desc='Compute the Information'):
-        aggregations = grouped_df.agg(['min', 'max', 'mean', 'median', 'std'])
+        aggregations = grouped_df['value'].agg(['min', 'max', 'mean', 'median', 'std'])
         for ws in grouped_df.groups.keys():
-            score_information.loc[(name, ws), :] = aggregations.loc[ws, :]
+            value_dict['name'].append(name)
+            value_dict['ws'].append(ws)
+            value_dict['min'].append(aggregations.loc[ws, "min"])
+            value_dict['max'].append(aggregations.loc[ws, "max"])
+            value_dict['mean'].append(aggregations.loc[ws, "mean"])
+            value_dict['median'].append(aggregations.loc[ws, "median"])
+            value_dict['std'].append(aggregations.loc[ws, "std"])
 
-    # get the window sizes we computed
+    # transform the values into a dataframe and set the index
+    score_information = pd.DataFrame(value_dict)
+    score_information.set_index(['name', 'ws'], inplace=True)
+
+    # return the result
     logger.info(f"[{__name__}] Preprocessed data in {time.perf_counter() - start:0.2f} s.")
     return score_information
 
@@ -74,6 +80,8 @@ def get_score_information(session_id: str, folder_name: str):
     Output('hidden-graph1', 'figure'),
     Output('hidden-graph1-container', 'hidden'),
     Output('hidden-graph2-container', 'hidden'),
+    Output('hidden-graph3-container', 'hidden'),
+    Output('confirm-danger', 'displayed'),
     State("session-id", "data"),
     State("folder-name", "data"),
     Input('basic-interactions', 'selectedData'),
@@ -86,7 +94,7 @@ def display_selected_data(session_id: str, folder_name: str,
 
     # check whether there is something selected
     if not selected_data or not selected_data['points']:
-        return "", {}, True, True
+        return "", {}, True, True, True, False
 
     # get the minimum and maximum of all the selected points
     min_idx = min(pd.Timestamp(point['x']) for point in selected_data['points'])
@@ -94,6 +102,10 @@ def display_selected_data(session_id: str, folder_name: str,
 
     # get the changepoint signal during this change
     cp_similarities, names = find_others(session_id, folder_name, min_idx, max_idx, selected_signal, window_size, selection_method)
+
+    # check whether there is something selected
+    if cp_similarities is None:
+        return "", {}, True, True, True, True
 
     # construct the result string
     res_str = [f"Points from signal {selected_signal} are selected from Index: {min_idx} to {max_idx}.\n"]
@@ -125,7 +137,7 @@ def display_selected_data(session_id: str, folder_name: str,
     # fig.update_layout(barmode='group')
     fig.update_layout(transition_duration=500)
     fig.update_layout(xaxis_title="Change Point Similarity", yaxis_title="Complete Signal Correlation")
-    return "\n".join(res_str), fig, False, True
+    return "\n".join(res_str), fig, False, True, True, False
 
 
 # make a python function that goes through all other signals and finds the most interesting ones
@@ -146,6 +158,10 @@ def find_others(session_id: str, folder_name: str, start, end, selected_signal, 
 
     # get the selected signal data
     signal = scores_grouped[selected_signal].get_group(window_size).loc[start:end, 'value'].to_numpy()
+
+    # check whether we selected only one sample
+    if signal.shape[0] < 1:
+        return None, None
 
     # get the other signals with the correct window size and put them into a numpy array
     other_array = np.empty((len(signal_names) - 1, signal.shape[0]))
@@ -190,8 +206,8 @@ def find_others(session_id: str, folder_name: str, start, end, selected_signal, 
     elif selection_method == 'Activity':  # find the signal with the highest normalized activity
 
         # get the data for the min-max-normalization
-        other_array_min = np.array([score_information.loc[(name, window_size), 'Minimum'] for name in signal_names])
-        other_array_max = np.array([score_information.loc[(name, window_size), 'Maximum'] for name in signal_names])
+        other_array_min = np.array([score_information.loc[(name, window_size), 'min'] for name in signal_names])
+        other_array_max = np.array([score_information.loc[(name, window_size), 'max'] for name in signal_names])
 
         # make the min-max-normalization
         other_divisor = other_array_max-other_array_min
@@ -290,8 +306,9 @@ def change_window_size(session_id: str, folder_name: str, select_window_size, se
     Input('hidden-graph1', 'clickData'),
     State('signal-select', 'value'),
     State('basic-interactions', 'selectedData'),
+    State('window-select', 'value'),
     prevent_initial_call=True)
-def display_click_data(session_id: str, folder_name: str, click_data, selected_signal, selected_data):
+def display_signal_onclick(session_id: str, folder_name: str, click_data, selected_signal, selected_data, window_size):
     # check whether we clicked a point
     if not click_data or not click_data['points'] or not selected_data or not selected_data['points']:
         return {}, True, ""
@@ -306,7 +323,7 @@ def display_click_data(session_id: str, folder_name: str, click_data, selected_s
     # get the timezone of the selected signal
     tz = raw_signals_grouped.get_group(selected_signal).index.tz
 
-    # set the timezone of the scores
+    # set the timezone of the signals
     start = start.tz_localize(tz)
     end = end.tz_localize(tz)
 
@@ -323,14 +340,74 @@ def display_click_data(session_id: str, folder_name: str, click_data, selected_s
         secondary_y=False,
     )
 
-    # make the score plot
+    # make the other signal plot
     cmp_signal_df = raw_signals_grouped.get_group(cmpsig_name)
     fig.add_trace(
         go.Scatter(x=cmp_signal_df.index, y=cmp_signal_df['value'], name=cmpsig_name),
         secondary_y=True,
     )
 
-    return fig, False, f"Selected {selected_signal} & {cmpsig_name}"
+    # make the lines
+    fig.add_vrect(x0=start, x1=end, annotation_text="selection")
+
+    return fig, False, [html.H2('Signals'), f"Selected {selected_signal} & {cmpsig_name}"]
+
+
+@callback(
+    Output('hidden-graph3', 'figure'),
+    Output('hidden-graph3-container', 'hidden', allow_duplicate=True),
+    Output('hidden-graph3-text', 'children'),
+    State("session-id", "data"),
+    State("folder-name", "data"),
+    Input('hidden-graph1', 'clickData'),
+    State('signal-select', 'value'),
+    State('basic-interactions', 'selectedData'),
+    State('window-select', 'value'),
+    prevent_initial_call=True)
+def display_score_onclick(session_id: str, folder_name: str, click_data, selected_signal, selected_data, window_size):
+
+    # check whether we clicked a point
+    if not click_data or not click_data['points'] or not selected_data or not selected_data['points']:
+        return {}, True, ""
+
+    # get the minimum and maximum of all the selected points
+    start = min(pd.Timestamp(point['x']) for point in selected_data['points'])
+    end = max(pd.Timestamp(point['x']) for point in selected_data['points']) + pd.Timedelta(milliseconds=1)
+
+    # get the signal data
+    scores, _, _, _, _, raw_signals_grouped, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+
+    # get the timezone of the selected signal
+    tz = raw_signals_grouped.get_group(selected_signal).index.tz
+
+    # set the timezone of the scores
+    start = start.tz_localize(tz)
+    end = end.tz_localize(tz)
+
+    # get the name of the clicked signal
+    cmpsig_name = click_data['points'][0]['customdata'][0]
+
+    # make a figure
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # make the signal plot
+    signal_df = scores[selected_signal].get_group(window_size)
+    fig.add_trace(
+        go.Scatter(x=signal_df.index, y=signal_df['value'], name=selected_signal),
+        secondary_y=False,
+    )
+
+    # make the other signal plot
+    cmp_signal_df = scores[cmpsig_name].get_group(window_size)
+    fig.add_trace(
+        go.Scatter(x=cmp_signal_df.index, y=cmp_signal_df['value'], name=cmpsig_name),
+        secondary_y=True,
+    )
+
+    # make the lines
+    fig.add_vrect(x0=start, x1=end, annotation_text="selection")
+
+    return fig, False, [html.H2('Scores'), f"Selected {selected_signal} & {cmpsig_name}"]
 
 
 def layout(session_id: str, folder_name: str, **kwargs):
@@ -348,6 +425,10 @@ def layout(session_id: str, folder_name: str, **kwargs):
     signal_names = list(scores.keys())
 
     layout_definition = html.Div([
+        dcc.ConfirmDialog(
+            id='confirm-danger',
+            message='Please Select more than one data point!',
+        ),
         html.Div(children=[
             html.H1(f'Change Point Correlation Search',
                     style={'fontSize': 40},
@@ -427,7 +508,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
             id='hidden-graph1-container'
         ),
         html.Div(children=[
-            html.Div(children=[], id='hidden-graph2-text'),
+            html.Div(children=[], id='hidden-graph2-text', style={"text-align": "left"}),
             dcc.Graph(
                 id='hidden-graph2',
                 figure={}
@@ -436,6 +517,17 @@ def layout(session_id: str, folder_name: str, **kwargs):
             style=styles['div'],
             hidden=True,
             id='hidden-graph2-container'
+        ),
+        html.Div(children=[
+            html.Div(children=[], id='hidden-graph3-text', style={"text-align": "left"}),
+            dcc.Graph(
+                id='hidden-graph3',
+                figure={}
+            ),
+        ],
+            style=styles['div'],
+            hidden=True,
+            id='hidden-graph3-container'
         ),
         html.Div([
             dcc.Markdown("""
