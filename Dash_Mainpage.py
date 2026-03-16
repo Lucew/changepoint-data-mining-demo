@@ -156,7 +156,7 @@ app.layout = html.Div(
             children=[
                 html.Div(
                     children=[
-                        html.Div(html.H1(id="sidebar-symbol")),
+                        dcc.Loading(html.Div(html.H1(id="sidebar-symbol")),),
                         html.Div(side_bar_content, className='sidebar-content-div')
                     ],
                     className="sidebar",
