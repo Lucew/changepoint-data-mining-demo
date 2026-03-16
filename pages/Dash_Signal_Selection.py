@@ -103,7 +103,6 @@ def filter_regression_results(session_id: str, folder_name: str,
 
     # fill the distance matrix for the signals using pivoting of the regression results
     # https://stackoverflow.com/questions/71671054/convert-pandas-dataframe-to-distance-matrix
-    filtered_regression_results.loc[:, "distance"] = 10_000 - filtered_regression_results["correlation"]*1000
     filtered_distance_matrix = filtered_regression_results.pivot(index='x', columns='y', values='distance').fillna(0)
 
     # return the filtered regression results
