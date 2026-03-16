@@ -161,7 +161,11 @@ app.layout = html.Div(
                     ],
                     className="sidebar",
                 ),
-                dash.page_container,
+                dcc.Loading(
+                    dash.page_container,
+                    className="page-load-spinner",
+                    target_components={"_pages_content": "children"},
+                ),
             ],
         ),
 

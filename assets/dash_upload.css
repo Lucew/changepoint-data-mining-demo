@@ -19,3 +19,8 @@
 .upload-load-spinner::after {
   content: "Loading Data...";
 }
+
+
+.page-load-spinner::after {
+  content: "Loading Page...";
+}
