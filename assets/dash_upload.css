@@ -15,3 +15,7 @@
   background-color: #e9ecef;
   border-color: #adb5bd;
 }
+
+.upload-load-spinner::after {
+  content: "Loading Data...";
+}

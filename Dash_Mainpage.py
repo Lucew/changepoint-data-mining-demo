@@ -100,17 +100,19 @@ side_bar_content = dbc.Container([
     dcc.Store(data=__upload_status, id='upload-status', storage_type='session'),
 
     # Upload component
-    html.Div([
-        dcc.Upload(
-            id='upload-data',
-            children=html.Div([
-                html.P(children=[DEFAULT_UPLOAD_TEXT], id='upload-text', style={"fontSize": "20px", "marginBottom": "5px", "overflow": "flex"}),
-                html.Small("Drag and drop or click to browse", style={"color": "#6c757d"})
-            ]),
-            className="upload-box",
-            multiple=False,
-        ),
-    ], style={"marginBottom": "15px"}, className="upload-box-div"),
+    dcc.Loading(
+        html.Div([
+            dcc.Upload(
+                id='upload-data',
+                children=html.Div([
+                    html.P(children=[DEFAULT_UPLOAD_TEXT], id='upload-text', style={"fontSize": "20px", "marginBottom": "5px", "overflow": "flex"}),
+                    html.Small("Drag and drop or click to browse", style={"color": "#6c757d"})
+                ]),
+                className="upload-box",
+                multiple=False,
+            ),
+        ], style={"marginBottom": "15px"}, className="upload-box-div"),
+    id='upload-load-spinner', className="upload-load-spinner"),
 
     # Display uploaded filename
     dbc.Button("Delete File.", id="delete-file-button", disabled=True, style={"margin": "1px"}),
