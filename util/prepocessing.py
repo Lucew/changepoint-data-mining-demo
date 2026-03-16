@@ -51,6 +51,7 @@ def preprocess_regression_results(session_id: str, folder_name: str) -> (pd.Data
     complete_regression_results = pd.concat((regression_results,
                                              regression_results.rename(columns={"x": "y", "y": "x"})),
                                             ignore_index=True)
+    complete_regression_results.loc[:, "distance"] = 10_000 - complete_regression_results["correlation"] * 1000
 
     # group the flattened regression results by the tag
     complete_regression_results_grouped = complete_regression_results.groupby("x")
