@@ -148,9 +148,13 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
         if (!point) {
             return [
-                figures.map(() => {
+                figures.map((fig) => {
                     const patch = new Patch();
-                    patch.assign(["layout", "shapes"], []);
+                    const markerIndex = findMarkerIndex(fig);
+
+                    if (markerIndex !== -1) {
+                            patch.delete(["layout", "shapes", markerIndex]);
+                    }
                     return patch.build();
                 }),
                 null
