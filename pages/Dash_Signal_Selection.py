@@ -3,8 +3,10 @@ import time
 from time import perf_counter
 
 import dash
-from dash import dcc, html, Input, Output, callback, State, clientside_callback, ctx, register_page, ClientsideFunction
+from dash import dcc, html, Input, Patch, Output, callback, State, clientside_callback, ctx, register_page, ClientsideFunction, ALL
 from dash_extensions import EventListener
+from dash.exceptions import PreventUpdate
+
 import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
@@ -36,19 +38,19 @@ styles = {
                  '0%',
         'margin': 'auto',
         'boxShadow': 'dimgrey 4px 4px 2px',
-        'border-radius': '10px',
+        'borderRadius': '10px',
         'backgroundColor': 'white',
         'marginTop': '1rem',
     },
     'stickydiv': {
         'position': 'sticky',
         'top': '-10px',
-        "z-index": "20",
+        "zIndex": "20",
     },
     'dropdown': {
         'margin': 'auto',
         'width': '50%',
-        'border-radius': '10px',
+        'borderRadius': '10px',
         'color': 'black'
     },
 }
@@ -68,11 +70,11 @@ def draw_heatmap(data: pd.DataFrame):
         modebar_add=[
             'drawrect',
             'eraseshape'
-        ]
+        ],
     )
     fig.update_xaxes(scaleanchor=False)
+    fig.update_layout(uirevision="keep")
 
-    # Add modebar buttons
     return fig
 
 
@@ -169,7 +171,7 @@ def create_tsne(session_id: str, folder_name: str,
     # recompute the anomaly scores
     rec_anomaly = [0]*transf.shape[0]
     if anomaly_scores is not None:
-        rec_anomaly = bokeh_df.loc[:, 'Anomaly Score'].to_numpy()
+        rec_anomaly = bokeh_df.loc[:, 'Anomaly Score'].to_numpy().copy()
         rec_anomaly[np.isnan(rec_anomaly)] = 0
         zeroless_mask = rec_anomaly != 0
         zero_mask = ~zeroless_mask
@@ -276,6 +278,7 @@ def make_histogram(session_id: str, folder_name: str, correlation_threshold: flo
     Output(component_id='scatter-overall-div', component_property='hidden'),
     Output(component_id='scatter-overall-div2', component_property='hidden', allow_duplicate=True),
     Output(component_id='div-scatter-signal-graph2', component_property='hidden', allow_duplicate=True),
+    Output("graph-loading-signal", "children", allow_duplicate=True),
     State("session-id", "data"),
     State("folder-name", "data"),
     Input(component_id="scatter-graph", component_property="selectedData"),
@@ -284,7 +287,7 @@ def select_signals_scatter(session_id: str, folder_name: str, selected_data):
 
     # check whether we selected nothing
     if selected_data is None or len(selected_data["points"]) == 0:
-        return go.Figure(go.Scatter(x=[], y=[])), True, True, dash.no_update, dash.no_update
+        return go.Figure(go.Scatter(x=[], y=[])), True, True, dash.no_update, dash.no_update, ""
 
     # get the signals we selected
     selected_signals = [point["customdata"][0] for point in selected_data["points"]]
@@ -302,7 +305,7 @@ def select_signals_scatter(session_id: str, folder_name: str, selected_data):
     # make the figure from the signals
     fig = draw_heatmap(result_df)
 
-    return fig, False, False, True, True
+    return fig, False, False, True, True, ""
 
 
 @callback(
@@ -310,6 +313,7 @@ def select_signals_scatter(session_id: str, folder_name: str, selected_data):
     Output(component_id="raw-scatter-signal-graph", component_property="figure", allow_duplicate=True),
     Output(component_id='scatter-overall-div2', component_property='hidden'),
     Output(component_id='div-scatter-signal-graph2', component_property='hidden'),
+    Output("graph-loading-signal", "children", allow_duplicate=True),
     State("session-id", "data"),
     State("folder-name", "data"),
     Input(component_id="scatter-graph", component_property="clickData"),
@@ -318,7 +322,7 @@ def click_signals_scatter(session_id: str, folder_name: str, click_data):
 
     # check whether we selected nothing
     if click_data is None:
-        return go.Figure(go.Scatter(x=[], y=[])), go.Figure(go.Scatter(x=[], y=[])), True, True
+        return go.Figure(go.Scatter(x=[], y=[])), go.Figure(go.Scatter(x=[], y=[])), True, True, ""
 
     # get the signals we selected
     selected_signal = [point["customdata"][0] for point in click_data["points"]][0]
@@ -358,7 +362,7 @@ def click_signals_scatter(session_id: str, folder_name: str, click_data):
     fig.update_layout(xaxis_title="Date", yaxis_title="Residual Value (Unexpected Change)")
     fig2.update_layout(xaxis_title="Date", yaxis_title="Normalized Signal Value")
 
-    return fig, fig2, False, False
+    return fig, fig2, False, False, ""
 
 
 @callback(
@@ -372,7 +376,7 @@ def click_in_residuals(click_data, residual_fig, signal_fig):
 
     # check whether we selected nothing
     if click_data is None:
-        return dash.no_update, dash.no_update
+        raise PreventUpdate
 
     # delete the old shapes
     residual_fig['layout']['shapes'] = []
@@ -418,66 +422,83 @@ def update_histogram(session_id: str, folder_name: str, correlation_threshold: f
 
 
 @callback(
-    Output(component_id='scatter-signal-graph', component_property='figure', allow_duplicate=True),
-    Output(component_id='scatter-overall-div', component_property='children'),
-    Output(component_id='scatter-delete-button-all', component_property='children'),
+    Output(component_id='scatter-signal-graph', component_property='figure'),
     Output(component_id="scatter-delete-listener", component_property="event"),
-    State("session-id", "data"),
-    State("folder-name", "data"),
     Input(component_id='scatter-delete-button-all', component_property='n_clicks'),
-    State(component_id='scatter-signal-graph', component_property='figure'),
-    Input(component_id='scatter-signal-graph', component_property='relayoutData'),
-    Input(component_id='scatter-overall-div', component_property='children'),
     Input(component_id="scatter-delete-listener", component_property="n_events"),
     State(component_id="scatter-delete-listener", component_property="event"),
-    Input(component_id='scatter-signal-graph', component_property='clickData'),
     prevent_initial_call=True
 )
-def delete_shapes(session_id: str, folder_name: str,
-                  delete_all, current_figure, relayoutData, all_children, n_delete_events, delete_event_data,
-                  click_event):
+def delete_shapes(delete_all, n_delete_events, delete_event_data):
 
-    # check whether the relayoutData was the trigger, but it was only sizing
-    if ctx.triggered_id == 'heatmap-signal-graph' and relayoutData == {'autosize': True}:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    # write to logger
+    logger.info(f"[{__name__}] Triggered Element {ctx.triggered_id}, {ctx.inputs if len(str(ctx.inputs)) < 400 else f'{str(ctx.inputs)[:250]} [...]'}")
 
-    logger.info(f"[{__name__}] Triggered Element {ctx.triggered_id}, {ctx.inputs}")
-    # get existing shapes and sort out all that are not rect
-    if len(current_figure['data'][0]['y']):
-        shapes = [ele for ele in current_figure['layout'].get('shapes', []) if ele['type'] == 'rect']
-    else:
-        shapes = []
+    # create our patch objects for our figure
+    figure_shape_patch = Patch()
 
     # check for active shapes
     if delete_event_data:
 
         # get the index of the active shape
         active_idx = delete_event_data['detail.children']
-        assert len(active_idx) <= 1, f'There are more than one active shape {active_idx}.'
 
-        # get the active shape or delete the last shape
+        # delete the shape
         if active_idx:
-            active_idx = int(active_idx[0])
+            for ele in active_idx:
+                del figure_shape_patch['layout']['shapes'][int(ele)]
         else:
-            active_idx = len(shapes)-1
+            del figure_shape_patch['layout']['shapes'][-1]
 
-        # build the new shapes
-        shapes = [ele for idx, ele in enumerate(shapes) if idx != active_idx]
+    if delete_all and delete_event_data is None:
+        figure_shape_patch['layout']['shapes'].clear()
+    return figure_shape_patch, None
 
-    # check whether we pressed the delete button
-    if 'scatter-delete-button-all' == ctx.triggered_id:
-        shapes.clear()
 
-    # update the shape accordingly (by snapping to complete integers) and only keep shapes that we like
+@callback(
+    Output(component_id='scatter-signal-graph', component_property='figure', allow_duplicate=True),
+    Output(component_id='scatter-overall-div', component_property='children', allow_duplicate=True),
+    State("session-id", "data"),
+    State("folder-name", "data"),
+    Input(component_id='scatter-signal-graph', component_property='figure'),
+    Input(component_id='scatter-signal-graph', component_property='relayoutData'),
+    State(component_id='scatter-overall-div', component_property='children'),
+    Input(component_id='scatter-signal-graph', component_property='clickData'),
+    prevent_initial_call=True
+)
+def update_signal_plots(session_id: str, folder_name: str, current_figure, relayoutData, all_children, click_event):
+
+    # check whether the relayoutData was the trigger, but it was only sizing
+    if ctx.triggered_id in {'heatmap-signal-graph', 'scatter-signal-graph'} and relayoutData == {'autosize': True}:
+        raise PreventUpdate
+
+    logger.info(f"[{__name__}] Triggered Element {ctx.triggered_id}, {ctx.inputs if len(str(ctx.inputs)) < 400 else f'{str(ctx.inputs)[:250]} [...]'}")
+    # get existing shapes and sort out all that are not rect
+    shapes = []
+    if len(current_figure['data'][0]['y']):
+        shapes = [ele for ele in current_figure['layout'].get('shapes', []) if ele['type'] == 'rect']
+
+    # create our patch objects for both figures
+    figure_shape_patch = Patch()
+    signal_plot_patch = Patch()
+
+    # update the newest shape accordingly
     for idx, shape in enumerate(shapes):
 
         # set the indices
-        shape['y0'] = round(shape['y0'])
-        shape['y1'] = round(shape['y1'])
+        shapes[idx]['y0'] = round(shapes[-1]['y0'])
+        shapes[idx]['y1'] = round(shapes[-1]['y1'])
+        figure_shape_patch['layout']['shapes'][idx]['y0'] = shapes[idx]['y0']
+        figure_shape_patch['layout']['shapes'][idx]['y1'] = shapes[idx]['y1']
 
-        # give the shape a text
-        shape['label']['text'] = f'Selection {idx + 1}'
-        shape['label']['font'] = {'color': 'white'}
+        # give the shape a text if they do no already have one
+        shapes[idx]['label']['text'] = f'Selection {idx + 1}'
+        shapes[idx]['label']['font'] = {'color': 'white'}
+        figure_shape_patch['layout']['shapes'][idx]['label']['text'] = shapes[idx]['label']['text']
+        figure_shape_patch['layout']['shapes'][idx]['label']['font'] = shapes[idx]['label']['font']
+
+        # change the editmode
+        # figure_shape_patch['layout']['shapes'][idx]["editable"] = False
 
     # check whether we have shapes
     if shapes:
@@ -493,10 +514,50 @@ def delete_shapes(session_id: str, folder_name: str,
     click_point = None
     if click_event is not None:
         click_point = pd.Timestamp(click_event['points'][0]['x'])
+        print(click_point)
+
+
+    # create key from the shapes
+    shapes_dict = {f'{pd.Timestamp(shape['x0'])}-{pd.Timestamp(shape['x1'])}-{shape['y0']}-{shape['y1']}': idx for idx, shape in enumerate(shapes)}
+    shapes2children = dict()
+    delete_list = []
+
+    # match children to shapes
+    for idx, child in enumerate(all_children):
+
+        # get the details content
+        details_content = child['props']['children'][2]['props']['children'][0]['props']['children']
+
+        # now extract the numbers
+        column_numbers = details_content[2]
+        timestamps = details_content[4]
+
+        # get the numbers
+        column_numbers = column_numbers.replace('Cols. ', '').split(' to ')
+        timestamps = timestamps.split(' to ')
+
+        # make the key
+        key = f'{pd.Timestamp(timestamps[0])}-{pd.Timestamp(timestamps[1])}-{column_numbers[0]}-{column_numbers[1]}'
+
+        # delete the children that are not in the shapes anymore
+        if key not in shapes_dict:
+            delete_list.append(idx)
+
+        # remember that a child matches a shape
+        else:
+            shapes2children[shapes_dict[key]] = idx
 
     # make the other plots for each of the shapes
-    all_children.clear()
     for idx, shape in enumerate(shapes):
+
+        # make the shape title
+        shape_title = f"Signals for {shape['label']['text']}"
+
+
+        # it is already matched only update the title
+        if idx in shapes2children:
+            signal_plot_patch[shapes2children[idx]]["props"]["children"][0]["props"]["children"] = shape_title
+            continue
 
         # get all the columns we need to select (depending on where we start, one of the shapes is the larger one)
         column_start = shape['y0']
@@ -512,6 +573,10 @@ def delete_shapes(session_id: str, folder_name: str,
         tmp_signals = pd.concat(signals.get_group(grp).loc[time_start:time_end] for grp in names)
         # tmp_signals = signals[signals['sensor'].isin(names)].loc[time_start:time_end]
         fig = px.line(tmp_signals, y='normalized value', line_group='sensor', color='sensor', custom_data='value', hover_data=['sensor', 'value'], markers=True)
+        fig.update_layout(hovermode="x unified")
+        fig.update_xaxes(
+            uirevision="keep-zoom",
+        )
 
         # mark a line if the click point is in the corresponding axis
         selection_text = None
@@ -519,25 +584,45 @@ def delete_shapes(session_id: str, folder_name: str,
             fig.add_vline(x=click_point)
             selection_text = f'You selected: {click_event["points"][0]["y"]}   @{click_point}'
 
-        all_children.append(html.Div(children=[html.H3(f"Signals for Selection {idx+1}"),
+        signal_plot_patch.append(html.Div(children=[html.H3(shape_title),
                                                selection_text,
                                                html.Details(children=[
+                                                   html.Div(children=[
+                                                       f'[{", ".join(names)}], ',
+                                                       html.Br(),
+                                                       f'Cols. {column_start} to {column_end}',
+                                                       html.Br(),
+                                                       f'{time_start} to {time_end}',
+                                                   ]
+                                                   )
+                                               ],
+                                                   open=False,
+                                                   id=f'details-signal-selection-{idx+1}',
+                                                   title='Signal Plot',
+                                               ),
+                                               html.Details(children=[
                                                                 html.Div(children=[
-                                                                    dcc.Graph(figure=fig)])
+                                                                    dcc.Graph(figure=fig,
+                                                                              id={"type": "raw-signal-graph", "index": idx},
+                                                                              ),
+                                                                ],
+                                                                    id=f"raw-signal-fig-{idx}",
+                                                                )
                                                             ],
-                                                            open=True,
-                                                            id=f'scatter-signal-selection{idx + 1}'
-                                                            )]
-                                     , style=styles['div']
+                                                   open=True,
+                                                   id={"type": "raw-signal-div", "index": idx},
+                                                   title='Signal Plot',
+                                               )],
+                                     style=styles['div'],
+                                     id=f'scatter-signal-selection{idx + 1}-div',
                                      )
                             )
 
-    # update figure layout (shapes and also the ordering on the yaxis)
-    current_figure['layout']['shapes'] = shapes
-    current_figure = go.Figure(current_figure)
+    # we have to delete in reverse order and after making our edits, otherwise the indices will be invalid!!
+    for idx in reversed(delete_list):
+        del signal_plot_patch[idx]
 
-    return current_figure, all_children, f"Delete all {len(shapes)}", None
-
+    return figure_shape_patch, signal_plot_patch
 
 # how to call an update from button presses modified from
 # https://community.plotly.com/t/how-to-get-trigger-from-keyboard/76960/6
@@ -545,6 +630,18 @@ clientside_callback(
     ClientsideFunction(namespace="clientside", function_name="delete_stuff_scatter"),
     Output("scatter-signal-graph", "id"),
     Input("scatter-signal-graph", "id")
+)
+
+clientside_callback(
+    ClientsideFunction(namespace="clientside3", function_name="sync_raw_signal_hover"),
+Output({"type": "raw-signal-graph", "index": ALL}, "figure", allow_duplicate=True),
+    Output("raw-signal-selected-x", "data"),
+    Input({"type": "raw-signal-graph", "index": ALL}, "clickData"),
+    State({"type": "raw-signal-graph", "index": ALL}, "id"),
+    State({"type": "raw-signal-graph", "index": ALL}, "relayoutData"),
+    State({"type": "raw-signal-graph", "index": ALL}, "figure"),
+    State("raw-signal-selected-x", "data"),
+    prevent_initial_call=True,
 )
 
 
@@ -577,6 +674,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
 
     # define the app layout
     layout_definition = html.Div([
+        dcc.Store(id="raw-signal-selected-x", data=None),  # to store the clicked data
         html.Div(children=[
             html.H1(f'Change Decoupling Analyzer',
                     style={'fontSize': 40},
@@ -655,11 +753,16 @@ def layout(session_id: str, folder_name: str, **kwargs):
                     children=[
                         dbc.Row(children=[
                             dbc.Col(children=[
-                                dcc.Graph(
-                                    id='scatter-graph',
-                                    figure=create_scatter(session_id, folder_name),
-                                    style={'width': f'40vw', 'height': '30vw'},
-                                ),
+                                dcc.Loading(children=[
+                                    dcc.Graph(
+                                        id='scatter-graph',
+                                        figure=create_scatter(session_id, folder_name),
+                                        style={'width': f'40vw', 'height': '30vw'},
+                                    ),
+                                    html.Div(id="graph-loading-signal", style={"display": "none"}),
+                                ],
+                                    overlay_style={"visibility": "visible", "filter": "blur(2px)"},
+                                )
                             ],
                             ),
                             dbc.Col(children=[
@@ -674,6 +777,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                         ),
                     ],
                     type="circle",
+                    target_components={'scatter-graph3d': '*'}
                 ),
             ]),
             "Perplexity value",
@@ -694,7 +798,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                         id="loading-signals",
                         children=[
                             dcc.Graph(
-                                id='scatter-signal-graph',
+                                id={"type": "raw-signal-graph", "index": "scatter-signal-graph"},
                                 figure=go.Figure(go.Scatter(x=[], y=[])),
                             ),
                         ],
