@@ -73,40 +73,42 @@ def load_data(folder_path: str, mock_signals: bool = False, reduce_count: typing
         anomaly_scores = pd.read_parquet(anomaly_score_path)
 
     # load the distances if they are available
-    distances_path = os.path.join(folder_path, 'distances.csv')
+    distances_path = os.path.join(folder_path, 'distances.parquet')
     distances = None
     if os.path.exists(distances_path):
-        distances = pd.read_csv(distances_path)
+        distances = pd.read_parquet(distances_path)
 
     # sort out the distances
     if score_files_set is not None:
         distances = distances[distances['x'].isin(score_files_set) & distances['y'].isin(score_files_set)]
 
     # load the signal correlations if they are available
-    raw_signal_correlations_path = os.path.join(folder_path, 'signal_correlation.parquet')
+    raw_signal_correlations_path = os.path.join(folder_path, 'correlations.parquet')
     raw_signal_correlations = None
     if os.path.exists(raw_signal_correlations_path):
         raw_signal_correlations = pd.read_parquet(raw_signal_correlations_path)
 
-    # get the raw signals (currently just mock data from the scores)
+    # get the raw signals (currently just the score data)
     if mock_signals:
         signals = {}
         indexer = None
+        raw_dataframe_list = []
         for name, score in scores.items():
 
             # get the window sizes
-            print(score["window"].unique())
-            ws = min(score["window"].unique())
+            ws = score["window"].unique().min()[0]
 
             # get only the values where the minimum window size is there and make it as the signal
-            restricted_df = score.get_group(ws)["value"]
-            indexer = score.get_group(ws)["timestamp"]
-            signals[name] = restricted_df.to_numpy()
-        signals = pd.DataFrame(signals)
-        signals.index = indexer
+            restricted_df = score.get_group(ws)[["value"]]
+            signals[name] = restricted_df
+
+            # append to the future raw signal dataframe
+            restricted_df = restricted_df.copy()
+            restricted_df["sensor"] = name
+            raw_dataframe_list.append(restricted_df)
 
         # get the raw signals (currently just mock data from the scores)
-        raw_signals = signals.melt(value_name="value", var_name="sensor", ignore_index=False)
+        raw_signals = pd.concat(raw_dataframe_list, axis=0)
     else:
 
         # load the raw signals into memory
@@ -123,7 +125,7 @@ def load_data(folder_path: str, mock_signals: bool = False, reduce_count: typing
 
     # make the zscore normalization by group
     # https://pandas.pydata.org/pandas-docs/stable/user_guide/groupby.html#transformation
-    logger.info(f"[{__name__}] Normalizing the signals (@{time.perf_counter() - start:0.2f} s).")
+    logger.info(f"[{__name__}] Starting normalizing the signals (@{time.perf_counter() - start:0.2f} s).")
     raw_signals.loc[:, "normalized value"] = raw_signals.groupby("sensor", sort=False)[["value"]].transform(lambda x: (x - x.min()) / (xminmax if (xminmax := x.max()-x.min()) != 0 else 1))
 
     # sort the signals and create the groups
@@ -184,4 +186,5 @@ def delete_all_files_in_root(root_path: str) -> int:
 if __name__ == '__main__':
     # load_data(r"C:\Users\lucas\Downloads\2025-07-23T095510Z_Keadby")
     logging.basicConfig(level=logging.DEBUG)
-    load_data(r"C:\Users\lucas\PycharmProjects\changepoint-analysis-frontends\tmp-data-folder\download_zip\2025-09-10T143441Z_df_raw_lucas")
+    # load_data(r"C:\Users\lucas\PycharmProjects\changepoint-analysis-frontends\tmp-data-folder\download_zip\2025-09-10T143441Z_df_raw_lucas")
+    load_data(r"C:\Users\lucas\Data\CP_Anomaly\output_api")
