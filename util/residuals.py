@@ -2,9 +2,9 @@ import weakref
 import typing
 import logging
 import time
+import inspect
 
 import pandas as pd
-from tqdm import tqdm
 import numpy as np
 
 _RESIDUAL_REGISTER = weakref.WeakValueDictionary()
@@ -101,7 +101,7 @@ def compute_weighted_residual_norm(regression_results: pd.DataFrame, signal_list
 
     # make the overall dataframe
     result_df = pd.concat(residual_results, axis=1)
-    # logger.info(f"[{__name__}] Computing the residuals took {time.perf_counter() - start:0.2f} s and {_iterations} iters. {coming_from=}.")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Computing the residuals took {time.perf_counter() - start:0.2f} s and {_iterations} iters. {coming_from=}.")
     return result_df
 
 

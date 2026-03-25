@@ -1,6 +1,83 @@
 if (!window.dash_clientside) {
     window.dash_clientside = {};
 }
+
+function getPlotDiv(graphId) {
+    const graphRoot = document.getElementById(graphId);
+    if (!graphRoot) {
+        return null;
+    }
+
+    if (graphRoot.classList.contains("js-plotly-plot")) {
+        return graphRoot;
+    }
+
+    return graphRoot.querySelector(".js-plotly-plot");
+}
+
+function getShapes(graphId, storeId) {
+    const plotDiv = getPlotDiv(graphId)
+    const shapes = plotDiv.layout && Array.isArray(plotDiv.layout.shapes)  ? plotDiv.layout.shapes : [];
+
+    dash_clientside.set_props(storeId, {
+        data: {
+            graphId: graphId,
+            shapes: shapes
+        }
+    });
+}
+
+window.dash_shared = window.dash_shared || {};
+
+window.dash_shared.get_figure_shapes = function (wrapper_id) {
+    const target = document.getElementById(wrapper_id);
+    if (!target) {
+        return [];
+    }
+
+    const gd = target.querySelector(".js-plotly-plot");
+    if (!gd) {
+        return [];
+    }
+
+    const plot_shapes = (gd.layout && gd.layout.shapes) || [];
+    return plot_shapes;
+};
+
+window.dash_shared.get_figure_active_shape_idx = function(wrapper_id){
+
+    // create a function that finds the active shape
+    const find_active = function (element){
+        return element.childNodes[0].hasOwnProperty('_ontouchstart');
+    };
+
+    // create a function to find the index of a shape
+    const get_index = function(element){
+        return element.childNodes[1].getAttribute("data-index");
+    };
+
+    // get the graph by the id
+    const target = document.getElementById(wrapper_id)
+
+    // get the active shape from the figure
+    const shape_list = Array.from(target.getElementsByClassName('shape-group'));
+    const active_shapes = shape_list.filter(find_active).map(get_index);
+    return active_shapes;
+};
+
+window.dash_shared.build_delete_event = function(children, shapes){
+
+    // create an event with the shape information in it
+    const drop_complete = new CustomEvent('shapeDeletion', {
+        bubbles: true,
+        detail: {
+            children: children,
+            shapes: shapes,
+        }
+    });
+    return drop_complete;
+};
+
 window.dash_clientside.clientside = {
     make_draggable: function (id, id2) {
         setTimeout(function () {
@@ -17,10 +94,10 @@ window.dash_clientside.clientside = {
                 const drop_complete = new CustomEvent('dropcomplete', {
                     bubbles: true,
                     detail: {
-                      name: "Additional event infos",
+                        name: "Additional event infos",
                         children: order_ids
                     }
-                  });
+                });
                 target.dispatchEvent(drop_complete)
                 // How can I trigger an update on the children property
                 // ???
@@ -77,12 +154,12 @@ window.dash_clientside.clientside = {
             return child.id;
         });
         const drop_complete = new CustomEvent('dropcomplete', {
-                    bubbles: true,
-                    detail: {
-                      name: "Additional event infos",
-                        children: order_ids
-                    }
-                  });
+            bubbles: true,
+            detail: {
+                name: "Additional event infos",
+                children: order_ids
+            }
+        });
         target_container.dispatchEvent(drop_complete)
         return window.dash_clientside.no_update
     },
@@ -110,7 +187,7 @@ window.dash_clientside.clientside = {
                     detail: {
                         children: shapes
                     }
-                  });
+                });
                 console.log(drop_complete)
                 target.dispatchEvent(drop_complete)
             }
@@ -127,45 +204,68 @@ window.dash_clientside.clientside = {
         });
         return window.dash_clientside.no_update
     },
-    delete_stuff_scatter: function(id) {
+    delete_stuff_scatter: function(id, scatter_id) {
         document.addEventListener("keydown", function(event) {
             if (event.key === 'Delete') {
 
                 // get the graph by the id
                 const target = document.getElementById(id)
 
-                // create a function that finds the active shape
-                const find_active = function (element){
-                    return element.childNodes[0].hasOwnProperty('_ontouchstart')
-                }
+                // get the plot shapes
+                const plot_shapes = window.dash_shared.get_figure_shapes(id)
+                const active_shapes = window.dash_shared.get_figure_active_shape_idx(id)
 
-                // create a function to find the index of a shape
-                const get_index = function(element){
-                    return element.childNodes[1].getAttribute("data-index")
-                }
-
-                const shapes = Array.from(target.getElementsByClassName('shape-group')).filter(find_active).map(get_index)
                 // create an event with the shape information in it
-                const drop_complete = new CustomEvent('shapeDeletion', {
-                    bubbles: true,
-                    detail: {
-                        children: shapes
-                    }
-                  });
+                const drop_complete = window.dash_shared.build_delete_event(active_shapes, plot_shapes)
                 console.log(drop_complete)
                 target.dispatchEvent(drop_complete)
             }
-            if (event.keyCode >= 48 && event.keyCode <= 57) {
-                var element = document.getElementById('column-container')
-                if (event.keyCode != 48) {
-                    element = document.getElementById('scatter-signal-selection' + event.key);
+            if (/^[0-9]$/.test(event.key)) {
+                const number = Number(event.key);
+                let element = document.getElementById(scatter_id).children[number-1]
+                if (number === 0) {
+                    element = document.getElementById(id);
                 }
-
                 if (element) {
                     element.scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
                 }
             }
         });
         return window.dash_clientside.no_update
+    },
+    delete_all_stuff: function(button_id, id) {
+        document.getElementById(button_id).addEventListener("click",
+            function(n_clicks) {
+
+                // get the graph by the id
+                const target = document.getElementById(id)
+
+                // get the plot shapes
+                const plot_shapes = window.dash_shared.get_figure_shapes(id);
+
+                // create an event with the shape information in it
+                const drop_complete = window.dash_shared.build_delete_event('all', plot_shapes)
+                console.log(drop_complete)
+                target.dispatchEvent(drop_complete)
+            });
+        return window.dash_clientside.no_update;
+    },
+    delete_active_shape: function(button_id, id) {
+        document.getElementById(button_id).addEventListener("click",
+            function(n_clicks) {
+
+                // get the graph by the id
+                const target = document.getElementById(id)
+
+                // get the plot shapes
+                const plot_shapes = window.dash_shared.get_figure_shapes(id)
+                const active_shapes = window.dash_shared.get_figure_active_shape_idx(id)
+
+                // create an event with the shape information in it
+                const drop_complete = window.dash_shared.build_delete_event(active_shapes, plot_shapes)
+                console.log(drop_complete)
+                target.dispatchEvent(drop_complete)
+            });
+        return window.dash_clientside.no_update;
     }
 }
