@@ -27,9 +27,7 @@ function getShapes(graphId, storeId) {
     });
 }
 
-window.dash_shared = window.dash_shared || {};
-
-window.dash_shared.get_figure_shapes = function (wrapper_id) {
+function get_figure_shapes (wrapper_id) {
     const target = document.getElementById(wrapper_id);
     if (!target) {
         return [];
@@ -42,12 +40,18 @@ window.dash_shared.get_figure_shapes = function (wrapper_id) {
 
     const plot_shapes = (gd.layout && gd.layout.shapes) || [];
     return plot_shapes;
-};
+}
 
-window.dash_shared.get_figure_active_shape_idx = function(wrapper_id){
+function get_figure_active_shape_idx (wrapper_id){
 
     // create a function that finds the active shape
     const find_active = function (element){
+        if (typeof element == 'undefined'){
+            return false
+        }
+        if (typeof element.childNodes[0] == 'undefined'){
+            return false
+        }
         return element.childNodes[0].hasOwnProperty('_ontouchstart');
     };
 
@@ -63,9 +67,9 @@ window.dash_shared.get_figure_active_shape_idx = function(wrapper_id){
     const shape_list = Array.from(target.getElementsByClassName('shape-group'));
     const active_shapes = shape_list.filter(find_active).map(get_index);
     return active_shapes;
-};
+}
 
-window.dash_shared.build_delete_event = function(children, shapes){
+function build_delete_event (children, shapes){
 
     // create an event with the shape information in it
     const drop_complete = new CustomEvent('shapeDeletion', {
@@ -76,33 +80,61 @@ window.dash_shared.build_delete_event = function(children, shapes){
         }
     });
     return drop_complete;
-};
+}
+
+function emit_delete_active_shape (heatmap_id){
+
+    // get the graph by the id
+    const target = document.getElementById(heatmap_id)
+
+    // get the plot shapes
+    const plot_shapes = get_figure_shapes(heatmap_id)
+    const active_shapes = get_figure_active_shape_idx(heatmap_id)
+
+    // create an event with the shape information in it
+    const drop_complete = build_delete_event(active_shapes, plot_shapes)
+    target.dispatchEvent(drop_complete)
+}
+
+function emit_delete_all_shapes (heatmap_id){
+
+    // get the graph by the id
+    const target = document.getElementById(heatmap_id)
+
+    // get the plot shapes
+    const plot_shapes = get_figure_shapes(heatmap_id);
+
+    // create an event with the shape information in it
+    const drop_complete = build_delete_event('all', plot_shapes)
+    target.dispatchEvent(drop_complete)
+}
 
 window.dash_clientside.clientside = {
     make_draggable: function (id, id2) {
-        setTimeout(function () {
-            var ele = document.getElementById(id)
-            var ele2 = document.getElementById(id2)
-            var drake = dragula([ele, ele2]);
-            drake.on("drop", function (_el, target, source, sibling) {
-                // a component has been dragged & dropped
+        let ele = document.getElementById(id)
+        let ele2 = document.getElementById(id2)
+        let drake = dragula([ele, ele2]);
+        drake.on("drop", function (_el, target, source, sibling) {
+            // a component has been dragged & dropped
 
-                // get the order of the ids from the DOM
-                var order_ids = Array.from(ele.children).map(function (child) {
-                    return child.id;
-                });
-                const drop_complete = new CustomEvent('dropcomplete', {
-                    bubbles: true,
-                    detail: {
-                        name: "Additional event infos",
-                        children: order_ids
-                    }
-                });
-                target.dispatchEvent(drop_complete)
-                // How can I trigger an update on the children property
-                // ???
-            })
-        }, 1)
+            // get the order of the ids from the DOM
+            let order_ids = Array.from(ele.children).map(function (child) {
+                return child.id;
+            });
+
+            // check whether we reordered or we deleted
+            const event_type = target.id === source.id ? 'reorderEvent' : 'deleteEvent';
+            const drop_complete = new CustomEvent('dropcomplete', {
+                bubbles: true,
+                detail: {
+                    name: event_type,
+                    children: order_ids
+                }
+            });
+            target.dispatchEvent(drop_complete)
+            // How can I trigger an update on the children property
+            // ???
+        })
         return window.dash_clientside.no_update
     },
     select_signals: function (textboxContent, id1, id2, target_id) {
@@ -132,7 +164,7 @@ window.dash_clientside.clientside = {
 
         // Iterate through the signal list and match against the regex
         for (const child of stay_container.children) {
-            var signalText = child.textContent.trim();
+            const signalText = child.textContent.trim();
             if (regex.test(signalText)) {
                 selectedSignals.push(child);
             } else {
@@ -156,75 +188,23 @@ window.dash_clientside.clientside = {
         const drop_complete = new CustomEvent('dropcomplete', {
             bubbles: true,
             detail: {
-                name: "Additional event infos",
+                name: "deleteEvent",
                 children: order_ids
             }
         });
         target_container.dispatchEvent(drop_complete)
         return window.dash_clientside.no_update
     },
-    delete_stuff: function(id) {
+    button_press_interaction: function(heatmap_id, raw_signal_graph_container) {
         document.addEventListener("keydown", function(event) {
             if (event.key === 'Delete') {
-
-                // get the graph by the id
-                const target = document.getElementById(id)
-
-                // create a function that finds the active shape
-                const find_active = function (element){
-                    return element.childNodes[0].hasOwnProperty('_ontouchstart')
-                }
-
-                // create a function to find the index of a shape
-                const get_index = function(element){
-                    return element.childNodes[1].getAttribute("data-index")
-                }
-
-                const shapes = Array.from(target.getElementsByClassName('shape-group')).filter(find_active).map(get_index)
-                // create an event with the shape information in it
-                const drop_complete = new CustomEvent('shapeDeletion', {
-                    bubbles: true,
-                    detail: {
-                        children: shapes
-                    }
-                });
-                console.log(drop_complete)
-                target.dispatchEvent(drop_complete)
-            }
-            if (event.keyCode >= 48 && event.keyCode <= 57) {
-                var element = document.getElementById('column-container')
-                if (event.keyCode != 48) {
-                    element = document.getElementById('signal-selection' + event.key);
-                }
-
-                if (element) {
-                    element.scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
-                }
-            }
-        });
-        return window.dash_clientside.no_update
-    },
-    delete_stuff_scatter: function(id, scatter_id) {
-        document.addEventListener("keydown", function(event) {
-            if (event.key === 'Delete') {
-
-                // get the graph by the id
-                const target = document.getElementById(id)
-
-                // get the plot shapes
-                const plot_shapes = window.dash_shared.get_figure_shapes(id)
-                const active_shapes = window.dash_shared.get_figure_active_shape_idx(id)
-
-                // create an event with the shape information in it
-                const drop_complete = window.dash_shared.build_delete_event(active_shapes, plot_shapes)
-                console.log(drop_complete)
-                target.dispatchEvent(drop_complete)
+                emit_delete_active_shape(heatmap_id)
             }
             if (/^[0-9]$/.test(event.key)) {
                 const number = Number(event.key);
-                let element = document.getElementById(scatter_id).children[number-1]
+                let element = document.getElementById(raw_signal_graph_container).children[number-1]
                 if (number === 0) {
-                    element = document.getElementById(id);
+                    element = document.getElementById(heatmap_id);
                 }
                 if (element) {
                     element.scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
@@ -233,38 +213,17 @@ window.dash_clientside.clientside = {
         });
         return window.dash_clientside.no_update
     },
-    delete_all_stuff: function(button_id, id) {
+    delete_all_shapes: function(button_id, heatmap_id) {
         document.getElementById(button_id).addEventListener("click",
             function(n_clicks) {
-
-                // get the graph by the id
-                const target = document.getElementById(id)
-
-                // get the plot shapes
-                const plot_shapes = window.dash_shared.get_figure_shapes(id);
-
-                // create an event with the shape information in it
-                const drop_complete = window.dash_shared.build_delete_event('all', plot_shapes)
-                console.log(drop_complete)
-                target.dispatchEvent(drop_complete)
+                emit_delete_all_shapes(heatmap_id)
             });
         return window.dash_clientside.no_update;
     },
-    delete_active_shape: function(button_id, id) {
+    delete_active_shape: function(button_id, heatmap_id) {
         document.getElementById(button_id).addEventListener("click",
             function(n_clicks) {
-
-                // get the graph by the id
-                const target = document.getElementById(id)
-
-                // get the plot shapes
-                const plot_shapes = window.dash_shared.get_figure_shapes(id)
-                const active_shapes = window.dash_shared.get_figure_active_shape_idx(id)
-
-                // create an event with the shape information in it
-                const drop_complete = window.dash_shared.build_delete_event(active_shapes, plot_shapes)
-                console.log(drop_complete)
-                target.dispatchEvent(drop_complete)
+                emit_delete_active_shape(heatmap_id)
             });
         return window.dash_clientside.no_update;
     }
