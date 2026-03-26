@@ -165,6 +165,8 @@ app.layout = html.Div(
                     dash.page_container,
                     className="page-load-spinner",
                     target_components={"_pages_content": "children"},
+                    overlay_style={"visibility":"visible", "filter": "blur(2px)"},
+                    id="page-load-spinner",
                 ),
             ],
         ),
