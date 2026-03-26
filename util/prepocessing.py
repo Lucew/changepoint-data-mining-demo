@@ -1,5 +1,6 @@
 import logging
 import time
+import inspect
 
 import pandas as pd
 import pandas.api.typing as pdtypes
@@ -8,9 +9,6 @@ import numpy as np
 import util.cache_registry as ucache
 import util.load_data as utl
 from GLOBALS import *
-
-# get the logger
-logger = logging.getLogger("frontend-logger")
 
 
 def normalization(df: pd.DataFrame, window_length: int = None) -> pd.DataFrame:
@@ -44,6 +42,10 @@ def normalization(df: pd.DataFrame, window_length: int = None) -> pd.DataFrame:
 def preprocess_regression_results(session_id: str, folder_name: str) -> (pd.DataFrame, pdtypes.DataFrameGroupBy,
                                                                          pd.Series):
     start = time.perf_counter()
+
+    # get the logger
+    logger = logging.getLogger("frontend-logger")
+
     # load the regression results from the raw files
     _, _, _, _, regression_results, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
@@ -58,5 +60,5 @@ def preprocess_regression_results(session_id: str, folder_name: str) -> (pd.Data
 
     # find the maximum correlation per signal tag
     complete_max_correlation = complete_regression_results_grouped.max()
-    logger.info(f"[{__name__}]  Preprocessed regression results in {time.perf_counter() - start:0.2f} s.")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Preprocessed regression results in {time.perf_counter() - start:0.2f} s.")
     return complete_regression_results, complete_regression_results_grouped, complete_max_correlation
