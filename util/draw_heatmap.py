@@ -1,10 +1,15 @@
 import re
+import os
+import inspect
+import logging
+import time
+
 import pandas as pd
 import plotly.express as px
-import os
-
 import dash
+
 import util.load_data as utl
+import util.styles as usty
 from GLOBALS import *
 
 
@@ -43,6 +48,28 @@ def figure_get_line(shapes_list: list[dict]):
 
 def get_custom_shapes(shapes_list: list[dict]):
     return [(idx, ele) for idx, ele in enumerate(shapes_list) if is_custom_shape(ele)]
+
+def make_shape_store_entry(xmin: str, xmax: str):
+    return {'range': (xmin, xmax), 'shapes': []}
+
+
+def make_vline(x_position: [float | pd.Timestamp], width: float = 2, color: str = "black", dash_type: str = "solid"):
+
+    line = {
+        "type": "line",
+        "xref": "x",
+        "yref": "paper",  # span full plotting height
+        "x0": x_position,
+        "x1": x_position,
+        "y0": 0,
+        "y1": 1,
+        "line": {
+            "color": color,
+            "width": width,
+            "dash": dash_type,
+        },
+    }
+    return line
 
 
 def shape_update_patch(shape: dict, figure_shape_patch: dash.Patch, shape_idx: int, title_idx: int = None):
@@ -113,3 +140,286 @@ def create_raw_signal_figure(session_id: str, folder_name: str, shape: dict, sha
     fig.update_layout(shapes=[]) # important otherwise our patches to the shape property won't work
 
     return fig, names, time_start, time_end
+
+
+def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: list[str], figure_shapes: dict[str:list], raw_signal_figure_ids: list[str], relayout_data: dict):
+
+    # get the logger
+    logger = logging.getLogger("frontend-logger")
+
+    # check whether our shapes are really up to date
+    trigger_id = dash.stringify_id(dash.ctx.triggered_id)
+    all_shapes = figure_shapes.get(trigger_id, {'shapes': []})['shapes']
+    if any(saved_shape['type'] != shape['type'] for saved_shape, shape in zip(all_shapes, relayout_data['shapes'])):
+        logger.warning(f"[{__name__}][{inspect.stack()[0][3]}] Something with the shape store is off.")
+
+    # get existing rectangle shapes
+    shapes = get_custom_shapes(relayout_data['shapes'])
+
+    # if there are no rectangle shapes we do not have to do anything
+    if not shapes:
+        raise dash.exceptions.PreventUpdate
+
+    # create our patch objects for the raw signal plots
+    raw_signal_plot_collection_patch = dash.Patch()
+    figure_shape_patch = dash.Patch()
+
+    # get the latest shape and its number
+    idx = len(shapes)
+    shape_dx, shape = shapes[idx-1]
+
+    # update the shape
+    shape_y0, shape_y1 = shape_update_patch(shape, figure_shape_patch, shape_dx, idx)
+
+    # get the current time as an into to grant unique ids
+    currtime = str(time.time_ns())
+
+    # create the figure
+    fig = None
+    text_notification = None
+    time_start, time_end = pd.Timestamp(0), pd.Timestamp(0)
+    if len(shapes) > MAX_PLOTLY_SHAPES-3:
+        text_notification = dash.html.Div([dash.html.A("Too many shapes", href='https://plotly.com/python/performance/'), ". Please delete some. Otherwise, rendering will fail."])
+        logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many shapes: {len(shapes)=}.")
+    else:
+        # make the figure
+        fig, names, time_start, time_end = create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names)
+
+    # create graph object
+    graph_id = {"type": "raw-signal-graph", "index": currtime}
+    stringified_graph_id = dash.stringify_id(graph_id)
+    figure_shapes[stringified_graph_id] = make_shape_store_entry(*map(str, (time_start, time_end)))
+    raw_signal_graph = dash.dcc.Graph(figure=fig, id=graph_id)
+
+    # get the line from the heatmap figure
+    _, line_obj = figure_get_line(figure_shapes[trigger_id]['shapes'])
+    new_shape_list = []
+
+    if line_obj is not None:
+        line_position = pd.Timestamp(line_obj['x0'])
+
+        # check whether there is a line that is in range
+        is_in_range = time_start <= line_position <= time_end
+
+        # add the line to the raw signal plot if that is the case
+        if is_in_range and fig is not None:
+            vline = make_vline(line_position)
+            fig.add_shape(vline)
+            new_shape_list.append(vline)
+
+    # update the shape store
+    figure_shapes[stringified_graph_id]['shapes'] = new_shape_list
+
+    # create the new div
+    new_raw_plot = dash.html.Div(children=[dash.html.H3(make_raw_signal_plot_title(idx)),
+                                      text_notification,
+                                      dash.html.Details(children=[
+                                          dash.dcc.Loading(children=[
+                                              dash.html.Div(children=[
+                                                  raw_signal_graph,
+                                              ],
+                                                  id={"type": "div-raw-signal-graph", "index": currtime},
+                                              )
+                                          ],
+                                              overlay_style={"visibility": "visible", "filter": "blur(2px)"},
+                                          )
+                                      ],
+                                          open=True,
+                                          id={"type": "raw-signal-div", "index": currtime},
+                                      )],
+                            style=usty.div_styles['div'],
+                            id=f'scatter-signal-selection-div-{currtime}',
+                            )
+
+    # append the div to the existing divs
+    raw_signal_plot_collection_patch.append(new_raw_plot)
+
+    # update the shape dict
+    figure_shapes[trigger_id]['shapes'].append(shape)
+
+    return figure_shape_patch, [dash.no_update]*(len(raw_signal_figure_ids)-1), raw_signal_plot_collection_patch, figure_shapes
+
+
+def move_score_shape(session_id: str, folder_name: str, signal_names: list[str], figure_shapes: dict[str:list], raw_signal_figure_ids: list[str], relayout_data: dict):
+
+    # get the logger
+    logger = logging.getLogger("frontend-logger")
+
+    # write to logger
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Update shapes!")
+
+    # create our patch objects for our figure
+    figure_shape_patch = dash.Patch()
+    graph_patch = dash.Patch()
+
+    # extract the current shape information
+    pattern = re.compile(r'\[(\d+)]\.(\w+)$')
+    elements_dict = {(int(n), term): value for (n, term), value in
+                     ((re.search(pattern, key).groups(), value) for key, value in relayout_data.items())}
+
+    # check that the shape index is unique
+    shape_index = set(ele[0] for ele in elements_dict.keys())
+
+    # check our extraction results
+    if len(shape_index) != 1:
+        logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Triggered Element {dash.ctx.triggered_id}. We did not find relocate variables in {relayout_data=}.")
+        raise dash.exceptions.PreventUpdate
+
+    # get the index
+    shape_dx = shape_index.pop()
+
+    # get the shapes
+    trigger_id = dash.stringify_id(dash.ctx.triggered_id)
+    shapes_idces = [idx for idx, ele in get_custom_shapes(figure_shapes[trigger_id]['shapes'])]
+
+    # find the div idx
+    div_dx = shapes_idces.index(shape_dx)
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Moved shape {shape_dx} with corresponding div {div_dx}.")
+
+    # check whether we have too many shapes
+    if div_dx + 1 > MAX_PLOTLY_SHAPES-3:
+        logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many shapes. Ignore redraw of plot {div_dx}.")
+        raise dash.exceptions.PreventUpdate
+
+    # build a dummy shape with all the necessary information
+    shape_update = {key[1]: val for key, val in elements_dict.items()}
+
+    # update the shape itself
+    shape = figure_shapes[trigger_id]['shapes'][shape_dx]
+    shape.update(shape_update)
+
+    # update the shape
+    shape_y0, shape_y1 = shape_update_patch(shape, figure_shape_patch, shape_dx, None)
+
+    # get the id of the figure we want change (offset by one since the first is the heatmap)
+    target_raw_signal_figure_id = raw_signal_figure_ids[div_dx+1]
+
+    # create the figure and embed it into a dcc graph
+    fig, _, time_start, time_end = create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names)
+    graph = dash.dcc.Graph(figure=fig, id=target_raw_signal_figure_id)
+
+    # get the line from the heatmap figure
+    _, line_obj = figure_get_line(figure_shapes[trigger_id]['shapes'])
+    new_shape_list = []
+
+    if line_obj is not None:
+        line_position = pd.Timestamp(line_obj['x0'])
+
+        # check whether there is a line that is in range
+        is_in_range = time_start <= line_position <= time_end
+
+        # add the line to the raw signal plot if that is the case
+
+        if is_in_range:
+            vline = make_vline(line_position)
+            fig.add_shape(vline)
+            new_shape_list.append(vline)
+
+    # update the shapes and the range
+    figure_shapes[dash.stringify_id(target_raw_signal_figure_id)]['shapes'] = new_shape_list
+    figure_shapes[dash.stringify_id(target_raw_signal_figure_id)]['range'] = (time_start, time_end)
+
+    # check whether the line exists and is in range
+
+    # create the update list (one less than our ids, since we do not patch the heatmap)
+    graph_patch[0] = graph
+    update_list = [graph_patch if idx == div_dx else dash.no_update for idx in range(len(raw_signal_figure_ids)-1)]
+
+    # update the shape dict
+    figure_shapes[trigger_id][shape_dx] = shape
+
+    return figure_shape_patch, update_list, dash.no_update, figure_shapes
+
+
+def draw_lines_on_click(click_data, figure_ids: list[str], figure_shapes: dict[str: list], line_keywords: [dict[str:] | None] = None):
+
+    # make the default dict
+    if line_keywords is None:
+        line_keywords = dict()
+
+    # get the active click data
+    active_click_idx, active_click = next(((idx, x) for idx, x in enumerate(click_data) if x is not None), (None, None))
+
+    # check whether we clicked into any plot
+    if active_click is None:
+        raise dash.exceptions.PreventUpdate
+
+    # get the x position of the click
+    clicked_x = pd.Timestamp(active_click['points'][0]['x'])
+
+    # check whether we have a close line
+    close_to_active = False
+
+    # check whether the clicked figure has a line
+    clicked_fig_id = dash.stringify_id(figure_ids[active_click_idx])
+    line_idx, line_shape = figure_get_line(figure_shapes[clicked_fig_id]['shapes'])
+
+    # get the current position of the line if there is one
+    if line_idx is not None:
+
+        # get the range of the current active figure
+        fig_range = sorted(map(pd.Timestamp, figure_shapes[clicked_fig_id]['range']))
+
+        # get the position of the line
+        current_position = pd.Timestamp(figure_shapes[clicked_fig_id]['shapes'][line_idx]['x0'])
+
+        # check whether we are close to active
+        if abs(current_position - clicked_x) < 0.05 * abs(fig_range[0] - fig_range[1]):
+            close_to_active = True
+
+    # update all the shapes of all figures
+    figure_patches = []
+    for figid in figure_ids:
+
+        # get the string id
+        figid = dash.stringify_id(figid)
+
+        # create the patch
+        figure_patch = dash.Patch()
+
+        # make the vline
+        vline = make_vline(clicked_x, **line_keywords.get(figid, dict()))
+
+        # check whether we already have a line shape close by
+        line_idx, line_shape = figure_get_line(figure_shapes[figid]['shapes'])
+
+        # get the range of the current figure
+        fig_range = sorted(map(pd.Timestamp, figure_shapes[figid]['range']))
+
+        # check whether we are in range
+        is_in_range = fig_range[0] <= clicked_x <= fig_range[1]
+
+        # if there is no line, we just draw one
+        if line_shape is None:
+
+            if is_in_range:
+                # create the patch
+                figure_patch['layout']['shapes'].append(vline)
+                figure_patches.append(figure_patch)
+
+                # update our shape store
+                figure_shapes[figid]['shapes'].append(vline)
+            else:
+                figure_patches.append(dash.no_update)
+
+        # make the patch if it is in range
+        else:
+
+            # reposition the line if the click is in range, and we are not close to an existing line
+            if is_in_range and not close_to_active:
+
+                # update the line
+                figure_patch['layout']['shapes'][line_idx] = vline
+                figure_patches.append(figure_patch)
+
+                # update our shape store
+                figure_shapes[figid]['shapes'][line_idx] = vline
+            else:
+                # create the patch
+                del figure_patch['layout']['shapes'][line_idx]
+                figure_patches.append(figure_patch)
+
+                # update our shape store
+                del figure_shapes[figid]['shapes'][line_idx]
+
+    return figure_patches, figure_shapes, [None] * len(figure_ids)
