@@ -237,20 +237,6 @@ def update_histogram(correlation_threshold: float):
     return histogram_figure_patch, f'Correlation Value: {correlation_threshold}'
 
 
-def make_selection_title(idx: int):
-    return f'Selection {idx}'
-
-def make_raw_signal_plot_title(idx: int):
-    return f'Signal for {make_selection_title(idx)}'
-
-def is_custom_shape(shape: dict):
-    return shape['type'] == 'rect' or shape['type'] == 'path'
-
-def figure_get_line(shapes_list: list[dict]):
-    line_idx, line_shape = next(((idx, shape) for idx, shape in enumerate(shapes_list) if shape['type'] == 'line'),(None, None))
-    return line_idx, line_shape
-
-
 @callback(
     Output(component_id=score_graph_id, component_property='figure', allow_duplicate=True),
     Output(component_id="scatter-delete-listener", component_property="event", allow_duplicate=True),
@@ -270,7 +256,7 @@ def delete_shapes(n_delete_events, delete_event_data, raw_signal_fig_ids: list, 
 
     # check whether there are existing rectangle shapes
     stringy_heatmap_id = stringify_id(heatmap_id)
-    shape_idces = [idx for idx, ele in enumerate(figure_shapes[stringy_heatmap_id]['shapes']) if is_custom_shape(ele)]
+    shape_idces = [idx for idx, ele in uheat.get_custom_shapes(figure_shapes[stringy_heatmap_id]['shapes'])]
     if not shape_idces:
         raise PreventUpdate
 
@@ -302,13 +288,13 @@ def delete_shapes(n_delete_events, delete_event_data, raw_signal_fig_ids: list, 
             continue
 
         # adapt the text of the selections
-        figure_shape_patch['layout']['shapes'][idx]['label']['text'] = make_selection_title(new_index)
+        figure_shape_patch['layout']['shapes'][idx]['label']['text'] = uheat.make_selection_title(new_index)
 
         # get the index of the div (this accounts for the line that we use as marker)
         div_idx = shape_idces.index(idx)
 
         # update the corresponding raw signal plot headers
-        scatter_overall_patch[div_idx]["props"]["children"][0]["props"]["children"] = make_raw_signal_plot_title(new_index)
+        scatter_overall_patch[div_idx]["props"]["children"][0]["props"]["children"] = uheat.make_raw_signal_plot_title(new_index)
 
         # increment the new index
         new_index += 1
@@ -336,76 +322,6 @@ def delete_shapes(n_delete_events, delete_event_data, raw_signal_fig_ids: list, 
         del figure_shapes[stringify_id(raw_signal_fig_ids[div_idx+1])]
 
     return figure_shape_patch, None, scatter_overall_patch, figure_shapes
-
-
-def shape_update_patch(shape: dict, figure_shape_patch: Patch, shape_idx: int, title_idx: int = None):
-
-    # get the indices depending on the type of shape
-    if shape['type'] == 'rect':
-        shape_y0 = shape['y0']
-        shape_y1 = shape['y1']
-    elif shape['type'] == 'path':
-        parts = re.findall(r'([ML])([^ML]+)', shape['path'])
-        shape_y0 = min(float(ele[1].split(',', 1)[1]) for ele in parts)
-        shape_y1 = max(float(ele[1].split(',', 1)[1]) for ele in parts)
-        shape['x0'] = min(ele[1].split(',', 1)[0].replace('_', ' ') for ele in parts)
-        shape['x1'] = max(ele[1].split(',', 1)[0].replace('_', ' ') for ele in parts)
-    else:
-        raise ValueError(f'Shape of type {shape['type']} not defined.')
-
-    # round the indices
-    shape_y0 = round(max(shape_y0, 0))
-    shape_y1 = round(shape_y1)
-
-    # figure_shape_patch['layout']['shapes'][shape_idx]['y0'] = shape_y0
-    # figure_shape_patch['layout']['shapes'][shape_idx]['y1'] = shape_y1
-
-    # disable editing
-    # figure_shape_patch['layout']['shapes'][shape_idx]['editable'] = False
-
-    # give the shape a text if it is a new shape
-    if title_idx is not None:
-        title = make_selection_title(title_idx)
-        figure_shape_patch['layout']['shapes'][shape_idx]['label']['text'] = title
-        shape['label']['text'] = title
-        figure_shape_patch['layout']['shapes'][shape_idx]['label']['font'] = {'color': 'white'}
-        shape['label']['font'] = {'color': 'white'}
-        figure_shape_patch['layout']['shapes'][shape_idx]['label']['textposition'] = 'bottom center'
-        shape['label']['textposition'] = 'bottom center'
-
-    return shape_y0, shape_y1
-
-
-def create_raw_signal_figure(session_id: str, folder_name: str, shape: dict, shape_y0: int, shape_y1: int, signal_names: list[str]):
-    # load the raw signals
-    _, _, _, _, _, signals, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
-
-    # get all the columns we need to select (depending on where we start, one of the shapes is the larger one)
-    column_start, column_end = sorted((shape_y0, shape_y1))
-
-    # get the time we need to select (depending on where we start, one of the shapes is the larger one)
-    time_start = pd.Timestamp(shape['x0'])
-    time_end = pd.Timestamp(shape['x1'])
-    if time_end < time_start:
-        time_start, time_end = time_end, time_start
-
-    # get the signal names from the column indices
-    names = signal_names[column_start:column_end + 1]
-
-    # get the signal data
-    names = set(names)
-    tmp_signals = pd.concat(signals.get_group(grp).loc[time_start:time_end] for grp in names)
-
-    # make a figure using the first signal
-    fig = px.line(tmp_signals, y='normalized value', line_group='sensor', color='sensor', custom_data='value',
-                  hover_data=['sensor', 'value'], markers=True)
-    fig.update_layout(hovermode="x unified")
-    fig.update_xaxes(
-        uirevision="keep-zoom",
-    )
-    fig.update_layout(shapes=[]) # important otherwise our patches to the shape property won't work
-
-    return fig, names, time_start, time_end
 
 
 @callback(
@@ -459,7 +375,7 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
         logger.warning(f"[{__name__}][{inspect.stack()[0][3]}] Something with the shape store is off.")
 
     # get existing rectangle shapes
-    shapes = [(idx, ele) for idx, ele in enumerate(relayout_data['shapes']) if is_custom_shape(ele)]
+    shapes = uheat.get_custom_shapes(relayout_data['shapes'])
 
     # if there are no rectangle shapes we do not have to do anything
     if not shapes:
@@ -474,7 +390,7 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
     shape_dx, shape = shapes[idx-1]
 
     # update the shape
-    shape_y0, shape_y1 = shape_update_patch(shape, figure_shape_patch, shape_dx, idx)
+    shape_y0, shape_y1 = uheat.shape_update_patch(shape, figure_shape_patch, shape_dx, idx)
 
     # get the current time as an into to grant unique ids
     currtime = str(time.time_ns())
@@ -488,7 +404,7 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
         logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many shapes: {len(shapes)=}.")
     else:
         # make the figure
-        fig, names, time_start, time_end = create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names)
+        fig, names, time_start, time_end = uheat.create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names)
 
     # create graph object
     graph_id = {"type": "raw-signal-graph", "index": currtime}
@@ -497,7 +413,7 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
     raw_signal_graph = dcc.Graph(figure=fig, id=graph_id)
 
     # get the line from the heatmap figure
-    _, line_obj = figure_get_line(figure_shapes[trigger_id]['shapes'])
+    _, line_obj = uheat.figure_get_line(figure_shapes[trigger_id]['shapes'])
     new_shape_list = []
 
     if line_obj is not None:
@@ -516,7 +432,7 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
     figure_shapes[stringified_graph_id]['shapes'] = new_shape_list
 
     # create the new div
-    new_raw_plot = html.Div(children=[html.H3(make_raw_signal_plot_title(idx)),
+    new_raw_plot = html.Div(children=[html.H3(uheat.make_raw_signal_plot_title(idx)),
                                       text_notification,
                                       html.Details(children=[
                                           dcc.Loading(children=[
@@ -572,10 +488,10 @@ def move_score_shape(session_id: str, folder_name: str, signal_names: list[str],
 
     # get the shapes
     trigger_id = stringify_id(ctx.triggered_id)
-    shapes = [idx for idx, ele in enumerate(figure_shapes[trigger_id]['shapes']) if is_custom_shape(ele)]
+    shapes_idces = [idx for idx, ele in uheat.get_custom_shapes(figure_shapes[trigger_id]['shapes'])]
 
     # find the div idx
-    div_dx = shapes.index(shape_dx)
+    div_dx = shapes_idces.index(shape_dx)
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Moved shape {shape_dx} with corresponding div {div_dx}.")
 
     # check whether we have too many shapes
@@ -591,17 +507,17 @@ def move_score_shape(session_id: str, folder_name: str, signal_names: list[str],
     shape.update(shape_update)
 
     # update the shape
-    shape_y0, shape_y1 = shape_update_patch(shape, figure_shape_patch, shape_dx, None)
+    shape_y0, shape_y1 = uheat.shape_update_patch(shape, figure_shape_patch, shape_dx, None)
 
     # get the id of the figure we want change (offset by one since the first is the heatmap)
     target_raw_signal_figure_id = raw_signal_figure_ids[div_dx+1]
 
     # create the figure and embed it into a dcc graph
-    fig, _, time_start, time_end = create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names)
+    fig, _, time_start, time_end = uheat.create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names)
     graph = dcc.Graph(figure=fig, id=target_raw_signal_figure_id)
 
     # get the line from the heatmap figure
-    _, line_obj = figure_get_line(figure_shapes[trigger_id]['shapes'])
+    _, line_obj = uheat.figure_get_line(figure_shapes[trigger_id]['shapes'])
     new_shape_list = []
 
     if line_obj is not None:
@@ -660,7 +576,7 @@ def add_click_line(click_data, figure_ids: list[str], figure_shapes: dict[str: l
 
     # check whether the clicked figure has a line
     clicked_fig_id = stringify_id(figure_ids[active_click_idx])
-    line_idx, line_shape = figure_get_line(figure_shapes[clicked_fig_id]['shapes'])
+    line_idx, line_shape = uheat.figure_get_line(figure_shapes[clicked_fig_id]['shapes'])
 
     # get the current position of the line if there is one
     if line_idx is not None:
@@ -690,7 +606,7 @@ def add_click_line(click_data, figure_ids: list[str], figure_shapes: dict[str: l
         vline = make_vline(clicked_x, color="white" if figid == stringy_id else None, width=4)
 
         # check whether we already have a line shape close by
-        line_idx, line_shape = figure_get_line(figure_shapes[figid]['shapes'])
+        line_idx, line_shape = uheat.figure_get_line(figure_shapes[figid]['shapes'])
 
         # get the range of the current figure
         fig_range = sorted(map(pd.Timestamp, figure_shapes[figid]['range']))
