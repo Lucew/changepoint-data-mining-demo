@@ -4,6 +4,7 @@ import logging
 import shutil
 import time
 import json
+import inspect
 
 import pandas as pd
 import pandas.api.typing as pdtypes
@@ -13,13 +14,12 @@ import util.cache_registry as ucache
 from GLOBALS import *
 
 
-# get the logger
-logger = logging.getLogger("frontend-logger")
-
-
 @ucache.lru_cache(1)
 def load_data(folder_path: str, mock_signals: bool = False, reduce_count: typing.Optional[int] = None) -> tuple[dict[str: pdtypes.DataFrameGroupBy], dict[str: pd.DataFrame], tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
     start = time.perf_counter()
+
+    # get the logger
+    logger = logging.getLogger("frontend-logger")
 
     # check whether we wanted to reduce the count
     if reduce_count is None:
@@ -132,7 +132,7 @@ def load_data(folder_path: str, mock_signals: bool = False, reduce_count: typing
     raw_signals = raw_signals.sort_index(ascending=True)
     raw_signals_grouped = raw_signals.groupby("sensor", sort=False)
 
-    logger.info(f"[{__name__}] Loaded data files into cache from disk {time.perf_counter() - start:0.2f} s.")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Loaded data files into cache from disk {time.perf_counter() - start:0.2f} s.")
     return scores, signals, window_sizes, anomaly_scores, distances, raw_signals_grouped, raw_signal_correlations
 
 
@@ -167,6 +167,8 @@ def format_bytes(num: int) -> str:
 
 
 def delete_all_files_in_root(root_path: str) -> int:
+    # get the logger
+    logger = logging.getLogger("frontend-logger")
     if not os.path.isdir(root_path):
         return 0
     removed = 0
@@ -179,7 +181,7 @@ def delete_all_files_in_root(root_path: str) -> int:
                 os.remove(p)
             removed += 1
         except Exception as e:
-            logger.error(f"Failed removing {p}: {e}")
+            logger.error(f"[{__name__}][{inspect.stack()[0][3]}] Failed removing {p}: {e}")
     return removed
 
 
