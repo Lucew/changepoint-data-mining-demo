@@ -1,7 +1,5 @@
-import json
 import logging
 import time
-from time import perf_counter
 import re
 import inspect
 
@@ -14,14 +12,15 @@ import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-import numpy as np
-from sklearn.manifold import TSNE
 
 import util.load_data as utl
 import util.prepocessing as prep
-from GLOBALS import *
 import util.residuals as procd
-import util.cache_registry as ucache
+import util.styles as usty
+import util.create_tsne as utsne
+import util.draw_heatmap as uheat
+import util.draw_scatter as uscat
+from GLOBALS import *
 
 
 # register the page to our application
@@ -32,237 +31,6 @@ logger = logging.getLogger("frontend-logger")
 score_graph_type = "raw-signal-graph"
 score_graph_index = "scatter-signal-graph"
 score_graph_id = {"type": score_graph_type, "index": score_graph_index}
-
-
-# define some styles for different html elements
-styles = {
-    'pre': {
-        'border': 'thin lightgrey solid',
-        'color': 'black'
-    },
-    'div': {
-        'padding': '.6rem',
-        'width': '90%',
-        'margin': 'auto',
-        'boxShadow': 'dimgrey 4px 4px 2px',
-        'borderRadius': '10px',
-        'backgroundColor': 'white',
-        'marginTop': '1rem',
-        'resize': 'vertical',
-        'overflowX': 'hidden',
-        'overflowY': 'auto',
-    },
-    'stickydiv': {
-        'position': 'sticky',
-        'top': '-10px',
-        "zIndex": "20",
-        'overflowX': 'clip',
-        'overflowY': 'clip',
-    },
-    'dropdown': {
-        'margin': 'auto',
-        'width': '50%',
-        'borderRadius': '10px',
-        'color': 'black'
-    },
-}
-
-
-def draw_heatmap(data: pd.DataFrame):
-    # normalize the data
-    data = prep.normalization(data)
-
-    # make the figure
-    fig = px.imshow(data.transpose())
-
-    # Define dragmode, newshape parameters, amd add modebar buttons
-    fig.update_layout(
-        dragmode='drawrect',  # define dragmode
-        newshape=dict(line_color='cyan'),
-        modebar_add=[
-            'drawrect',
-        ],
-    )
-    fig.update_xaxes(scaleanchor=False)
-    fig.update_layout(uirevision="keep")
-    fig.update_layout(shapes=[])  # important otherwise our patches to the shape property won't work
-
-    return fig
-
-
-@ucache.cache
-def get_random_state():
-    # return np.random.RandomState(25)
-    return np.random.RandomState(3)
-
-
-@ucache.lru_cache(maxsize=1)
-def filter_regression_results(session_id: str, folder_name: str,
-                              correlation_threshold: float = None) -> (pd.DataFrame, pd.DataFrame, float):
-    start = time.perf_counter()
-    # get the preprocessed regression results
-    regression_results, _, complete_max_correlation = prep.preprocess_regression_results(session_id, folder_name)
-
-    # create default correlation threshold if not given
-    if correlation_threshold is None:
-        correlation_threshold = 0.90
-
-    # find all the signal names that have larger correlation than the threshold
-    mask = complete_max_correlation["correlation"] > correlation_threshold
-    max_correlated_signal_tags = set(complete_max_correlation[mask].index)
-
-    # only keep the signals that have maximum correlation
-    filtered_regression_results = regression_results.loc[regression_results["x"].isin(max_correlated_signal_tags) &
-                                                         regression_results["y"].isin(max_correlated_signal_tags)]
-
-    # fill the distance matrix for the signals using pivoting of the regression results
-    # https://stackoverflow.com/questions/71671054/convert-pandas-dataframe-to-distance-matrix
-    filtered_distance_matrix = filtered_regression_results.pivot(index='x', columns='y', values='distance').fillna(0)
-
-    # return the filtered regression results
-    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Filtered regression results in {time.perf_counter() - start:0.2f} s.")
-    return filtered_regression_results, filtered_distance_matrix, correlation_threshold
-
-
-@ucache.lru_cache(maxsize=1)
-def create_tsne(session_id: str, folder_name: str,
-                perplexity: int = None, correlation_threshold: float = None) -> (pd.DataFrame, int, float):
-    # TODO: Recompute TSNE when different signals are selected
-
-    # make the timing
-    started = perf_counter()
-
-    # get the filtered regression results
-    _, distance_matrix, correlation_threshold = filter_regression_results(session_id, folder_name, correlation_threshold)
-
-    # load the raw data
-    _, _, _, anomaly_scores, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
-
-    # load the maximum threshold information and signal names
-    _, _, max_correlation = prep.preprocess_regression_results(session_id, folder_name)
-
-    # compute default perplexity
-    # print("Parameters", session_id, folder_name, perplexity, correlation_threshold)
-    if perplexity is None:
-        perplexity = int(np.sqrt(distance_matrix.shape[0]))
-
-    # get the random state
-    random_state = get_random_state()
-
-    # compute the TSNE representation of the data
-    tsne = TSNE(metric='precomputed', init='random', perplexity=perplexity, random_state=random_state)
-    transf = tsne.fit_transform(distance_matrix)
-
-    # compute the TSNE representation of the data
-    tsne3d = TSNE(n_components=3, metric='precomputed', init='random', perplexity=perplexity, random_state=random_state)
-    transf3d = tsne3d.fit_transform(distance_matrix)
-
-    # create the dataframe from the information
-    # make the dataframe that we want to have
-    bokeh_df = pd.DataFrame({'x': transf[:, 0],
-                             'y': transf[:, 1],
-                             'x3d': transf3d[:, 0],
-                             'y3d': transf3d[:, 1],
-                             'z3d': transf3d[:, 2],
-                             'original': list(distance_matrix.columns),
-                             'Max. Corr.': [f"{ele:0.3f} " for ele in
-                                            list(max_correlation.loc[distance_matrix.columns]["correlation"])],
-                             'Anomaly Score': anomaly_scores.loc[distance_matrix.columns, 'score'] if anomaly_scores is not None else [None]*transf.shape[0],
-                             'block': [col[1:2] for col in list(distance_matrix.columns)],
-                             'block_turbine': [col[1:3] for col in list(distance_matrix.columns)],
-                             'turbine': [f'Steam [{col[2:3]}]' if col[2:3] == '0'
-                                         else f'Gas [{col[2:3]}]'
-                                         for col in list(distance_matrix.columns)],
-                             'component': [col[3:6] for col in list(distance_matrix.columns)],
-                             'measurement': [col[8:10] for col in list(distance_matrix.columns)]
-                             })
-
-    # TODO TSNE perplexity as component group size?
-    # print((bokeh_df.groupby("component")["x"].count()).median())
-
-    # recompute the anomaly scores
-    rec_anomaly = [0]*transf.shape[0]
-    if anomaly_scores is not None:
-        rec_anomaly = bokeh_df.loc[:, 'Anomaly Score'].to_numpy().copy()
-        rec_anomaly[np.isnan(rec_anomaly)] = 0
-        zeroless_mask = rec_anomaly != 0
-        zero_mask = ~zeroless_mask
-        rec_zeroless = np.log(rec_anomaly[zeroless_mask])
-        rec_anomaly[zero_mask] = rec_zeroless.min()
-        rec_anomaly[zeroless_mask] = rec_zeroless
-        rec_anomaly = (rec_anomaly - rec_anomaly.min()) / (rec_anomaly.max() - rec_anomaly.min())
-    bokeh_df['opac'] = rec_anomaly
-
-    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created TSNE ({perf_counter()-started:0.2f} s).")
-    return bokeh_df, perplexity, correlation_threshold
-
-
-def prepare_plot_data(session_id: str, folder_name: str, perplexity: int = None, correlation_threshold: int = None,
-                      selected_components: list[str] = None, selected_measurements: list[str] = None):
-    # load the data
-    bokeh_df, _, _ = create_tsne(session_id, folder_name, perplexity, correlation_threshold)
-
-    # check whether we need to select something
-    if selected_components is not None:
-
-        # select the data we want to have
-        selected_components = set(selected_components)
-        bokeh_df = bokeh_df[bokeh_df['component'].isin(selected_components)]
-    if selected_measurements is not None:
-
-        # select the data we want to have
-        selected_measurements = set(selected_measurements)
-        bokeh_df = bokeh_df[bokeh_df['measurement'].isin(selected_measurements)]
-    # print("left", bokeh_df[["original", "x", "y"]])
-    return bokeh_df
-
-
-def create_scatter(session_id: str, folder_name: str, perplexity: int = None, correlation_threshold: float = None,
-                   selected_components: list[str] = None, selected_measurements: list[str] = None):
-
-    # get the scatter plot information
-    bokeh_df = prepare_plot_data(session_id, folder_name, perplexity, correlation_threshold, selected_components, selected_measurements)
-
-    # make the figure
-    fig = px.scatter(bokeh_df, x="x", y="y", color="component", symbol="measurement", size="opac",
-                     hover_data=["original", 'Max. Corr.', 'Anomaly Score'])
-    fig.update_traces(marker=dict(
-        line=dict(width=2,
-                  color='DarkSlateGrey',
-                  ),
-    ),
-        selector=dict(mode='markers'))
-
-    # go through the markers and change their color
-    # https://stackoverflow.com/a/68175130
-    for data in fig.data:
-        data['marker']['line'].width = [opac*5 for opac in data['marker']['size']]
-        data['marker'].size = 12
-
-    # set the selection style
-    fig.update_layout(
-        dragmode='select',  # define from: ['zoom', 'pan', 'select', 'lasso', 'drawclosedpath', 'drawopenpath', 'drawline', 'drawrect', 'drawcircle', 'orbit', 'turntable', False]
-    )
-    fig.update_layout(
-        autosize=True,
-    )
-    return fig
-
-
-def create_scatter_3d(session_id: str, folder_name: str,
-                      perplexity: int = None, correlation_threshold: float = None,
-                      selected_components: list[str] = None, selected_measurements: list[str] = None):
-
-    # get the scatter plot information
-    bokeh_df = prepare_plot_data(session_id, folder_name, perplexity, correlation_threshold, selected_components, selected_measurements)
-
-    # make the figure
-    # NOTE: Linking the 3D plot to the 2D is not trivial as selectedpoints is not a valid option
-    # for scatter_3d as of now
-    fig = px.scatter_3d(bokeh_df, x="x3d", y="y3d", z='z3d', color="component", symbol="measurement",
-                        hover_data=["original"])
-
-    return fig
 
 
 def find_nearest_index(df: pd.DataFrame, time_start, time_end) -> (int, int):
@@ -326,10 +94,13 @@ def select_signals_scatter(session_id: str, folder_name: str, graph_id, selected
 
     # compute the weighted scoring for each of the selected signals
     # TODO mean correlation value per cluster as hint whether it is a good cluster
-    # result_df = procd.compute_weighted_residual_norm(regression_results, selected_signals, scores, coming_from='signal-selection')
+    result_df = procd.compute_weighted_residual_norm(regression_results, selected_signals, scores, coming_from='signal-selection')
+
+    # normalize the signals
+    result_df = prep.normalization(result_df)
 
     # make the figure from the signals
-    fig = draw_heatmap(result_df)
+    fig = uheat.draw_heatmap(result_df)
     shape_dict = {stringify_id(graph_id): make_shape_store_entry(str(result_df.index.min()), str(result_df.index.max()))}
 
     return fig, False, False, True, True, "", list(result_df.columns), children_patch, shape_dict
@@ -450,8 +221,8 @@ def click_in_residuals(click_data1, click_data2):
     prevent_initial_call=True)
 def update_scatter_plots(session_id: str, folder_name: str,
                          value, component_list, measurement_list, correlation_threshold):
-    return (create_scatter(session_id, folder_name, value, correlation_threshold, component_list, measurement_list),
-            create_scatter_3d(session_id, folder_name,value, correlation_threshold, component_list, measurement_list))
+    return (uscat.create_scatter(session_id, folder_name, value, correlation_threshold, component_list, measurement_list),
+            uscat.create_scatter_3d(session_id, folder_name,value, correlation_threshold, component_list, measurement_list))
 
 
 @callback(
@@ -761,7 +532,7 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
                                           open=True,
                                           id={"type": "raw-signal-div", "index": currtime},
                                       )],
-                            style=styles['div'],
+                            style=usty.div_styles['div'],
                             id=f'scatter-signal-selection-div-{currtime}',
                             )
 
@@ -979,7 +750,7 @@ def print_thing(data):
 # how to call an update from button presses modified from
 # https://community.plotly.com/t/how-to-get-trigger-from-keyboard/76960/6
 clientside_callback(
-    ClientsideFunction(namespace="clientside", function_name="delete_stuff_scatter"),
+    ClientsideFunction(namespace="clientside", function_name="button_press_interaction"),
     Output(score_graph_id, "id"),
     Input("div-scatter-signal-graph", "id"),
     State('scatter-overall-div', "id"),
@@ -987,7 +758,7 @@ clientside_callback(
 
 # delete all shapes
 clientside_callback(
-    ClientsideFunction(namespace="clientside", function_name="delete_all_stuff"),
+    ClientsideFunction(namespace="clientside", function_name="delete_all_shapes"),
     Output("scatter-delete-button-all", "id"),
     Input("scatter-delete-button-all", "id"),
     Input("div-scatter-signal-graph", "id")
@@ -1019,7 +790,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
     # get the result ones before running the app, so we can set some default values
     # variable naming seems complex, but as these are global to the app, these complex names make sure we do not
     # accidentally reuse them
-    _global_bokeh_df, _global_default_perplexity, _global_corr_thresh = create_tsne(session_id, folder_name)
+    _global_bokeh_df, _global_default_perplexity, _global_corr_thresh = utsne.create_tsne(session_id, folder_name)
     _global_measurement_types = list(_global_bokeh_df["measurement"].unique())
     _global_component_types = list(_global_bokeh_df["component"].unique())
 
@@ -1059,7 +830,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                 start_collapsed=True,
             ),
         ],
-            style=styles['div'],
+            style=usty.div_styles['div'],
         ),
         html.Div(children=[
             dbc.Accordion(children=[
@@ -1079,7 +850,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                 start_collapsed=True,
             ),
         ],
-            style=styles['div'],
+            style=usty.div_styles['div'],
         ),
         html.Div(children=[
             "This is the scatter plot of Signals",
@@ -1126,7 +897,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                         dcc.Loading(children=[
                             dcc.Graph(
                                 id='scatter-graph',
-                                figure=create_scatter(session_id, folder_name),
+                                figure=uscat.create_scatter(session_id, folder_name),
                                 style={'width': f'40vw', 'height': '30vw'},
                             ),
                             html.Div(id="graph-loading-signal", style={"display": "none"}),
@@ -1139,7 +910,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                         dcc.Loading(children=[
                             dcc.Graph(
                                 id='scatter-graph3d',
-                                figure=create_scatter_3d(session_id, folder_name),
+                                figure=uscat.create_scatter_3d(session_id, folder_name),
                                 style={'width': f'40vw', 'height': '30vw'},
                             ),
                         ],
@@ -1156,7 +927,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                        id='perplexity-slider',
                        ),
         ],
-            style= styles['div'],
+            style= usty.div_styles['div'],
             hidden=False,
         ),
 
@@ -1184,7 +955,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
             html.Button("Delete All", id="scatter-delete-button-all", className="button-4"),
             html.Button("Delete Active", id="scatter-delete-button-active", className="button-4"),
         ],
-            style= styles['div'] |styles['stickydiv'],
+            style= usty.div_styles['div'] | usty.div_styles['stickydiv'],
             hidden=True,
             id='div-scatter-signal-graph',
         ),
@@ -1204,7 +975,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                 ),
             ]),
         ],
-            style=styles['stickydiv'] | styles['div'],
+            style=usty.div_styles['stickydiv'] | usty.div_styles['div'],
             hidden=True,
             id='div-scatter-signal-graph2',
         ),
@@ -1227,18 +998,18 @@ def layout(session_id: str, folder_name: str, **kwargs):
             )
         ],
             id="scatter-overall-div2",
-            style=styles['div'],
+            style=usty.div_styles['div'],
             hidden=True
         ),
         html.Div(
             children=[],
-            style=styles['div'],
+            style=usty.div_styles['div'],
             id='signal-include-container',
             hidden=True,
         ),
         html.Div(
             children=[],
-            style=styles['div'],
+            style=usty.div_styles['div'],
             id='signal-ignore-container',
             hidden=True,
         ),
