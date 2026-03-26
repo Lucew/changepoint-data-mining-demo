@@ -423,3 +423,81 @@ def draw_lines_on_click(click_data, figure_ids: list[str], figure_shapes: dict[s
                 del figure_shapes[figid]['shapes'][line_idx]
 
     return figure_patches, figure_shapes, [None] * len(figure_ids)
+
+
+def delete_shapes(delete_event_data: dict, raw_signal_fig_ids: list, figure_shapes: dict[str: list], heatmap_id: dict):
+
+    # get the logger
+    logger = logging.getLogger("frontend-logger")
+
+    if delete_event_data is None:
+        raise dash.exceptions.PreventUpdate
+
+    # check whether there are existing rectangle shapes
+    stringy_heatmap_id = dash.stringify_id(heatmap_id)
+    shape_idces = [idx for idx, ele in get_custom_shapes(figure_shapes[stringy_heatmap_id]['shapes'])]
+    if not shape_idces:
+        raise dash.exceptions.PreventUpdate
+
+    # create our patch objects for our figure
+    figure_shape_patch = dash.Patch()
+    scatter_overall_patch = dash.Patch()
+
+    # get the index of the active shape
+    active_idx = delete_event_data['detail.children']
+
+    # get the indices we want to delete
+    if not active_idx:
+        active_idx = [shape_idces[-1]]
+    elif active_idx == 'all':
+        active_idx = shape_idces
+    else:
+        active_idx = list(map(int, active_idx))
+    active_idx = set(active_idx)
+
+    # write to logger
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}]Triggered Element {dash.ctx.triggered_id}. We want to delete!: {active_idx=}.")
+
+    # update the remaining shape names and the headers of the remaining raw signal plots
+    new_index = 1
+    for idx in shape_idces:
+
+        # ignore the divs that will be deleted
+        if idx in active_idx:
+            continue
+
+        # adapt the text of the selections
+        figure_shape_patch['layout']['shapes'][idx]['label']['text'] = make_selection_title(new_index)
+
+        # get the index of the div (this accounts for the line that we use as marker)
+        div_idx = shape_idces.index(idx)
+
+        # update the corresponding raw signal plot headers
+        scatter_overall_patch[div_idx]["props"]["children"][0]["props"]["children"] = make_raw_signal_plot_title(new_index)
+
+        # increment the new index
+        new_index += 1
+
+    # delete the shapes in the figure
+    # !IMPORTANT! Do this as last step. Otherwise, shape indices will be incorrect.
+    # !IMPORTANT! Do this in reverse index order
+
+    for ele in sorted(active_idx, reverse=True):
+
+        # delete the target shapes from the heatmap
+        del figure_shape_patch['layout']['shapes'][ele]
+
+        # update the heatmap shapes in our shape store
+        del figure_shapes[stringy_heatmap_id]['shapes'][ele]
+
+        # get the index of the div (this accounts for the line that we use as marker)
+        div_idx = shape_idces.index(ele)
+
+        # delete the raw signal plots
+        del scatter_overall_patch[div_idx]
+
+        # update our shape store by deleting the key corresponding to the raw signal plot that we deleted
+        # increment index by one as the first id in raw_signal_fig_ids is the heatmap id
+        del figure_shapes[dash.stringify_id(raw_signal_fig_ids[div_idx+1])]
+
+    return figure_shape_patch, scatter_overall_patch, figure_shapes
