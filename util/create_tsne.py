@@ -63,8 +63,15 @@ def window_size_correlation(session_id: str, folder_name: str, window_size: int)
     score_corr = score_df.corr()
     score_corr = score_corr.abs()
 
+    # get the columns where there is nan
+    not_null_columns = score_corr.columns[~score_corr.isnull().any(axis=0)]
+    score_corr = score_corr.loc[not_null_columns, not_null_columns]
+
+    # transform correlation into distance
+    score_corr = 10_000 - score_corr * 1000
+
     # return the filtered regression results
-    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Filtered regression results in {time.perf_counter() - start:0.2f} s.")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Correlated scores in {time.perf_counter() - start:0.2f} s.")
     return score_corr
 
 

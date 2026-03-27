@@ -245,7 +245,7 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
     window_size = min(window_sizes)
 
     # check whether there are too many sensors
-    if len(scores) > 100:
+    if len(scores) > 1000:
         return html.H1(f"There are too many sensors ({len(scores)=}) reduce to 50 or less.")
 
     # create the heatmap figure
@@ -302,7 +302,7 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
                     ],
                         type="circle",
                         overlay_style={"visibility": "visible", "filter": "blur(2px)"},
-                        id={'type': 'heatmap-data-loader', 'index': 'signal-selection'},
+                        id={'type': 'heatmap-data-loader', 'index': 'signal-scatter-plot'},
                     ),
                 ]),
                 dbc.Col(children=[
@@ -392,6 +392,9 @@ def reorder_columns(event_data: dict, n_events: int):
     State("folder-name", "data"),
     Input("heatmap-select-window-size", "value"),
     Input('heatmap-active-signal-store', 'data'),
+    running=[
+        (Output({'type': 'heatmap-data-loader', 'index': 'signal-selection'}, "display"), "show", "auto")
+    ], # this deactivates the figure while running our function
     prevent_initial_call=True,
 )
 def redraw_scatter_graph(session_id: str, folder_name: str, window_size: str, signal_store: dict):
@@ -424,6 +427,10 @@ def redraw_scatter_graph(session_id: str, folder_name: str, window_size: str, si
     Input("heatmap-normalization-input", "value"),
     Input('heatmap-active-signal-store', 'data'),
     Input('heatmap-scatter-graph', 'selectedData'),
+    running=[
+        (Output({'type': 'heatmap-data-loader', 'index': 'signal-scatter-plot'}, "display"), "show", "auto"),
+        (Output({'type': 'heatmap-data-loader', 'index': 'signal-selection'}, "display"), "show", "auto")
+    ], # this deactivates the figure while running our function
     prevent_initial_call=True,
 )
 def modify_heatmap_content(session_id: str, folder_name: str, all_signal_names: list[str,...], window_size: str, normalization_window_size: str, signal_store: dict, scatter_select: dict):
@@ -509,7 +516,10 @@ def delete_shapes(n_delete_events, delete_event_data, raw_signal_fig_ids: list, 
     State(component_id="heatmap-figure-shape-store", component_property="data"),
     State(component_id={"type": on_click_type, "index": ALL}, component_property='id'),
     Input(heatmap_id, "relayoutData"),
-    running=[(Output({'type': 'heatmap-data-loader', 'index': 'heatmap-graph'}, "display"), "show", "auto")], # this deactivates the figure while running our function
+    running=[
+        (Output({'type': 'heatmap-data-loader', 'index': 'signal-scatter-plot'}, "display"), "show", "auto"),
+        (Output({'type': 'heatmap-data-loader', 'index': 'signal-selection'}, "display"), "show", "auto")
+    ], # this deactivates the figure while running our function
     prevent_initial_call=True
 )
 def modify_shapes(session_id: str, folder_name: str, signal_names: dict[str:list[str]], figure_shapes: dict[str:list], raw_signal_figure_ids: list[str], relayout_data: dict):
@@ -523,7 +533,7 @@ def modify_shapes(session_id: str, folder_name: str, signal_names: dict[str:list
     if not is_new_shape and not is_shape_redraw:
         logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Triggered Element {ctx.triggered_id}. Unknown event type: {relayout_data=}.")
         raise PreventUpdate
-    print(raw_signal_figure_ids)
+
     # make a logging entry
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Triggered Element {ctx.triggered_id}, {is_new_shape=}, {is_shape_redraw=}.")
 
@@ -555,7 +565,7 @@ def add_click_line(click_data, figure_ids: list[str], figure_shapes: dict[str: l
 
 # delete all shapes upon heatmap change
 @callback(
-Output(component_id=heatmap_id, component_property='figure', allow_duplicate=True),
+    Output(component_id=heatmap_id, component_property='figure', allow_duplicate=True),
     Output(component_id="heatmap-raw-signal-graph-container", component_property='children', allow_duplicate=True),
     Output(component_id="heatmap-figure-shape-store", component_property="data", allow_duplicate=True),
     Input('heatmap-displayed-signal-store', "data"),
