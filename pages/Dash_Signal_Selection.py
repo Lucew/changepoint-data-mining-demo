@@ -447,12 +447,20 @@ def layout(session_id: str, folder_name: str, **kwargs):
                 dbc.Row(children=[
                     dbc.Col(children=[
                         dcc.Loading(children=[
-                            dcc.Graph(
-                                id='scatter-graph',
-                                figure=uscat.create_scatter(session_id, folder_name),
-                                style={'width': f'40vw', 'height': '30vw'},
+                            dbc.Accordion(children=[
+                                dbc.AccordionItem(children=[
+                                    dcc.Graph(
+                                        id='scatter-graph',
+                                        figure=uscat.create_scatter(session_id, folder_name),
+                                        style={'width': f'40vw', 'height': '30vw'},
+                                    ),
+                                    html.Div(id="graph-loading-signal", style={"display": "none"}),
+                                ],
+                                    title = "Scatter Plot",
+                                ),
+                            ],
+                                start_collapsed=False,
                             ),
-                            html.Div(id="graph-loading-signal", style={"display": "none"}),
                         ],
                             overlay_style={"visibility": "visible", "filter": "blur(2px)"},
                         )
@@ -460,10 +468,18 @@ def layout(session_id: str, folder_name: str, **kwargs):
                     ),
                     dbc.Col(children=[
                         dcc.Loading(children=[
-                            dcc.Graph(
-                                id='scatter-graph3d',
-                                figure=uscat.create_scatter_3d(session_id, folder_name),
-                                style={'width': f'40vw', 'height': '30vw'},
+                            dbc.Accordion(children=[
+                                dbc.AccordionItem(children=[
+                                dcc.Graph(
+                                    id='scatter-graph3d',
+                                    figure=uscat.create_scatter_3d(session_id, folder_name),
+                                    style={'width': f'40vw', 'height': '30vw'},
+                                ),
+                                ],
+                                    title="3D Scatter Plot",
+                                ),
+                            ],
+                                start_collapsed=False
                             ),
                         ],
                             overlay_style={"visibility": "visible", "filter": "blur(2px)"},
