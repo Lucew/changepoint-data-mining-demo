@@ -241,12 +241,11 @@ def delete_shapes(n_delete_events, delete_event_data, raw_signal_fig_ids: list, 
     State("signal-name-store", "data"),
     State("figure-shape-store", "data"),
     State(component_id={"type": "raw-signal-graph", "index": ALL}, component_property='id'),
-    State(component_id={"type": "div-raw-signal-graph", "index": ALL}, component_property='id'),
     Input(score_graph_id, "relayoutData"),
     running=[(Output("loading-signals", "display"), "show", "auto")], # this deactivates the figure while running our function
     prevent_initial_call=True
 )
-def modify_shapes(session_id: str, folder_name: str, signal_names: list[str], figure_shapes: dict[str:list], raw_signal_figure_ids: list[str], raw_signal_div_ids: list[str], relayout_data: dict):
+def modify_shapes(session_id: str, folder_name: str, signal_names: list[str], figure_shapes: dict[str:list], raw_signal_figure_ids: list[str], relayout_data: dict):
 
     # check whether we want to draw a new shape
     if 'autosize' in relayout_data:
@@ -263,7 +262,7 @@ def modify_shapes(session_id: str, folder_name: str, signal_names: list[str], fi
 
     # make the processing depending on the event
     if is_new_shape:
-        figure_shape_patch, raw_signal_plot_patch_list, raw_signal_plot_collection_patch, figure_shapes = uheat.create_new_raw_signal_plot(session_id, folder_name, signal_names, figure_shapes, raw_signal_figure_ids, relayout_data)
+        figure_shape_patch, raw_signal_plot_patch_list, raw_signal_plot_collection_patch, figure_shapes = uheat.create_new_raw_signal_plot(session_id, folder_name, signal_names, figure_shapes, raw_signal_figure_ids, relayout_data, "raw-signal-graph")
     elif is_shape_redraw:
         figure_shape_patch, raw_signal_plot_patch_list, raw_signal_plot_collection_patch, figure_shapes = uheat.move_score_shape(session_id, folder_name, signal_names, figure_shapes, raw_signal_figure_ids, relayout_data)
     else:

@@ -43,7 +43,7 @@ def is_custom_shape(shape: dict):
     return shape['type'] == 'rect' or shape['type'] == 'path'
 
 def figure_get_line(shapes_list: list[dict]):
-    line_idx, line_shape = next(((idx, shape) for idx, shape in enumerate(shapes_list) if shape['type'] == 'line'),(None, None))
+    line_idx, line_shape = next(((idx, shape) for idx, shape in enumerate(shapes_list) if shape['type'] == 'line'), (None, None))
     return line_idx, line_shape
 
 def get_custom_shapes(shapes_list: list[dict]):
@@ -142,7 +142,7 @@ def create_raw_signal_figure(session_id: str, folder_name: str, shape: dict, sha
     return fig, names, time_start, time_end
 
 
-def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: list[str], figure_shapes: dict[str:list], raw_signal_figure_ids: list[str], relayout_data: dict):
+def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: list[str], figure_shapes: dict[str:list], raw_signal_figure_ids: list[str], relayout_data: dict, signal_graph_type: str):
 
     # get the logger
     logger = logging.getLogger("frontend-logger")
@@ -186,7 +186,7 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
         fig, names, time_start, time_end = create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names)
 
     # create graph object
-    graph_id = {"type": "raw-signal-graph", "index": currtime}
+    graph_id = {"type": signal_graph_type, "index": currtime}
     stringified_graph_id = dash.stringify_id(graph_id)
     figure_shapes[stringified_graph_id] = make_shape_store_entry(*map(str, (time_start, time_end)))
     raw_signal_graph = dash.dcc.Graph(figure=fig, id=graph_id)
