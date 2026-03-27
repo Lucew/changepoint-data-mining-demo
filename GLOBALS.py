@@ -19,6 +19,9 @@ DEFAULT_UPLOAD_TEXT_SUCCESS = f"✅ Uploaded"
 # define a reduced sensor set
 MAX_SIGNALS = 500
 
+# define the maximum number of signals for the heatmap
+MAX_HEATMAP_SIGNALS = 150
+
 # define the maximum number of shape selections
 # !!!Please do not change this, if you are not absolutely certain that Plotly supports more shapes!!!
 # More Information: https://plotly.com/python/performance/

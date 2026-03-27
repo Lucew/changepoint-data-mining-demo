@@ -17,6 +17,7 @@ import util.cache_registry as ucache
 import util.styles as usty
 import util.draw_heatmap as uheat
 import util.draw_scatter as uscat
+import  util.process_kks as ukks
 from GLOBALS import *
 
 
@@ -233,33 +234,74 @@ def make_selection_accordion(signal_ids: list[str]):
     )
     return signal_selection_accordion
 
-def layout(session_id: str = "", folder_name: str="", **kwargs):
+
+def get_initial_figures(session_id: str, folder_name: str, target_window_size: int = None,
+                        component_selection: list[str] = None, measurement_selection: list[str] = None
+                        ) -> [list[tuple[str,...],...], int, list[int,...], plotly.graph_objs.Figure, pd.Timestamp, pd.Timestamp, plotly.graph_objs.Figure]:
+
+    # load the data into memory to get some information
+    scores, _, window_sizes, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+    score_df, _, _ = process_signals(session_id=session_id, folder_name=folder_name, window_size=min(window_sizes))
+
+    # define the initially used signals
+    signal_ids = list(score_df.columns)
+
+    # make the default values
+    if component_selection is not None:
+        component_selection = set(component_selection)
+    if measurement_selection is not None:
+        measurement_selection = set(measurement_selection)
+
+    # parse the signals and only keep the ones we want to select
+    signal_ids = [(name, *parsedtag)
+                   for name in signal_ids
+                   if len(parsedtag := ukks.parse_kks_tag(name))
+                   and (component_selection is None or parsedtag[2] in component_selection)
+                   and (measurement_selection is None or parsedtag[3] in measurement_selection)]
+
+    # get the initial window size
+    if target_window_size is None:
+        target_window_size = min(window_sizes)
+    elif target_window_size not in window_sizes:
+        raise ValueError(f"{target_window_size=} must be in {window_sizes=}.")
+
+    # create the heatmap figure
+    if len(signal_ids) <= MAX_HEATMAP_SIGNALS:
+        heatmap_figure, start_time, end_time = create_heatmap(session_id=session_id, folder_name=folder_name, window_size=target_window_size)
+    else:
+        heatmap_figure = uheat.create_empty_figure_with_text(f"Too many signals to display the heatmap without lag (Current number: {len(signal_ids)} > {MAX_HEATMAP_SIGNALS=}). Please select signals in the sidebar.")
+        start_time = pd.Timestamp(1)
+        end_time = pd.Timestamp(0)
+    logger.info(f"[{__name__}] Created completely new heatmap figure.")
+
+    # create the tsne figure
+    scatter_figure = uscat.create_scatter(session_id, folder_name, correlation_threshold=-2.0, window_size=target_window_size, selected_signals=[ele[0] for ele in signal_ids])
+    return signal_ids, target_window_size, window_sizes, heatmap_figure, start_time, end_time, scatter_figure
+
+
+def layout(session_id: str = "", folder_name: str="", selection_names: dict[str:dict[str:str]] = None,
+           selection_values = list[list[str]], **kwargs):
+
+    # get the start time
+    start = time.perf_counter()
 
     # check whether we have a folder
     if not folder_name:
         return html.H1("Please upload a file using the sidebar.")
 
-    # load the data into memory to get some information
-    scores, _, window_sizes, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
-    score_df, _, _ = process_signals(session_id=session_id, folder_name=folder_name, window_size=min(window_sizes))
-    window_size = min(window_sizes)
+    # get the selections
+    component_selection = selection_values[2]
+    measurement_selection = selection_values[3]
 
-    # check whether there are too many sensors
-    if len(scores) > 1000:
-        return html.H1(f"There are too many sensors ({len(scores)=}) reduce to 50 or less.")
-
-    # create the heatmap figure
-    figure, start_time, end_time = create_heatmap(session_id=session_id, folder_name=folder_name, window_size=window_size)
-    logger.info(f"[{__name__}] Created initial figure and window size options.")
+    # create the initial figures and infos
+    signal_ids, initial_window_size, window_sizes, heatmap_figure, start_time, end_time, scatter_figure = get_initial_figures(session_id, folder_name, component_selection=component_selection, measurement_selection=measurement_selection)
+    initial_signal_ids = [ele[0] for ele in signal_ids]
 
     # define a custom event for the shape deletion
     delete_event = {"event": 'shapeDeletion', "props": ["detail.children"]}
 
     # get the explanation text from the file
     text = get_explanation()
-
-    # define the initially used signals
-    initial_signal_ids = list(score_df.columns)
 
     # define the app layout
     layout_definition = html.Div([
@@ -277,7 +319,7 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
                 start_collapsed=True,
             ),
             "Window Size Selection",
-            dbc.Select(id="heatmap-select-window-size", options=sorted(window_sizes), value=window_size),
+            dbc.Select(id="heatmap-select-window-size", options=sorted(window_sizes), value=initial_window_size),
         ],
             style=usty.div_styles['div'],
         ),
@@ -290,7 +332,7 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
                             dbc.AccordionItem(children=[
                                 dcc.Graph(
                                     id='heatmap-scatter-graph',
-                                    figure=uscat.create_scatter(session_id, folder_name, correlation_threshold=-2.0, window_size=window_size, selected_signals=initial_signal_ids),
+                                    figure=scatter_figure,
                                     style={'width': f'40vw', 'height': '25vw', 'marginLeft': 'auto', 'marginRight': 'auto'},
                                 ),
                             ],
@@ -328,7 +370,7 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
                     dcc.Loading(children=[
                         dcc.Graph(
                             id=heatmap_id,
-                            figure=figure,
+                            figure=heatmap_figure,
                         ),
                     ],
                         type="circle",
@@ -369,6 +411,8 @@ def layout(session_id: str = "", folder_name: str="", **kwargs):
         ),
     ],
     )
+
+    logger.info(f"[{__name__}] Build the heatmap analysis page in {time.perf_counter() - start:0.2f} s.")
     return layout_definition
 
 

@@ -16,8 +16,9 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 
 import util.load_data as utl
-from GLOBALS import *
 import util.cache_registry as ucache
+import util.process_kks as ukks
+from GLOBALS import *
 
 
 # Page descriptions
@@ -45,6 +46,8 @@ app = dash.Dash(__name__, use_pages=PAGED, external_stylesheets=external_stylesh
                 routing_callback_inputs={
                     "session_id": Input('session-id', "data"),
                     "folder_name": Input('folder-name', "data"),
+                    "selection_names": State({"type": "main-page-selection-dropdown", "index": dash.ALL}, "id"),
+                    "selection_values": Input({"type": "main-page-selection-dropdown", "index": dash.ALL}, "value")
                 },
                 suppress_callback_exceptions=True,
                 )
@@ -112,7 +115,7 @@ side_bar_content = dbc.Container([
                 multiple=False,
             ),
         ], style={"marginBottom": "15px"}, className="upload-box-div"),
-    id='upload-load-spinner', className="upload-load-spinner"),
+        id='upload-load-spinner', className="upload-load-spinner"),
 
     # Display uploaded filename
     dbc.Button("Delete File.", id="delete-file-button", disabled=True, style={"margin": "1px"}),
@@ -127,11 +130,18 @@ side_bar_content = dbc.Container([
             for title, desc in page_info.items()
         ],
     ),
-
+    html.Br(),
+    dbc.Accordion(
+        children=[],
+        style={"display": "none"},
+        start_collapsed=True,
+        id="signal-selection-accordion",
+    ),
+    html.Br(),
     # Collapsible container (hidden initially)
     dbc.Accordion(
         children=[
-            dbc.AccordionItem(title=f"{title} Description", children=desc, style={"marginTop": "10px"})
+            dbc.AccordionItem(title=f"{title} Description", children=desc, style={"marginTop": "0px"})
             for i, (title, desc) in enumerate(page_info.items(), start=1)
         ],
         style={"display": "none"},
@@ -335,12 +345,13 @@ def delete_own_files(n: int, session_id: str):
     Output("page-button-grid", "style"),
     Output("upload-text", "children"),
     Output("sidebar-symbol", "children"),
+    Output("signal-selection-accordion", "style"),
     Input("session-id", "data"),
     Input("folder-name", "data"),
     Input("file-name", "data"),
     Input("upload-status", "data"),
 )
-def available_files(session_id: str, folder_name: str, filename: str, upload_status: str) -> tuple[bool, dict[str:str], dict[str:str], str, str]:
+def available_files(session_id: str, folder_name: str, filename: str, upload_status: str) -> tuple[bool, dict[str:str], dict[str:str], str, str, dict]:
 
     # check whether we have file
     file_exists = folder_name and os.path.isdir(os.path.join(DATA_FOLDER, session_id, folder_name))
@@ -352,6 +363,7 @@ def available_files(session_id: str, folder_name: str, filename: str, upload_sta
     loaded_file_name = f"Delete File: {filename}" if file_exists else f"Delete File."
     page_link_style = {"display": "block"} if file_exists else {"display": "none"}
     page_button_style = {"display": "flex"} if file_exists else {"display": "none"}
+    component_selection_style = {"display": "block"} if file_exists else {"display": "none"}
 
     # check whether we have to make the button active
     button_disabled = not file_exists
@@ -362,7 +374,36 @@ def available_files(session_id: str, folder_name: str, filename: str, upload_sta
     # the sidebar symbol
     sidebar_symbol = "✔" if file_exists else ("☝" if not upload_status else "❌")
 
-    return button_disabled, page_link_style, page_button_style, upload_text, sidebar_symbol
+    return button_disabled, page_link_style, page_button_style, upload_text, sidebar_symbol, component_selection_style
+
+@app.callback(
+    Output("signal-selection-accordion", "children"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
+    Input("signal-selection-accordion", "style"),
+)
+def update_signal_selection_accordion(session_id: str, folder_name: str, style_change: dict):
+
+    # check whether we have file
+    file_exists = folder_name and os.path.isdir(os.path.join(DATA_FOLDER, session_id, folder_name))
+
+    # if the file does not exist we delete the stuff
+    if not file_exists:
+        return []
+
+    # load the data and extract the selections
+    scores, _, _, _, _ = load_files(session_id, folder_name)
+    selection_lists = ukks.get_info_from_list(scores.keys())
+
+
+    # make a list of selection accordions
+    item_list = [dbc.AccordionItem(children=[dcc.Dropdown(multi=True,
+                                                          options=selections,
+                                                          value=selections,
+                                                          id={"type": "main-page-selection-dropdown", "index": name})],
+                                   title=f"{name.capitalize()} Selection")
+                 for name, selections in selection_lists.items()]
+    return item_list
 
 
 @app.callback(
