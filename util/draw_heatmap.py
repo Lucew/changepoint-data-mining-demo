@@ -6,6 +6,7 @@ import time
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import dash
 
 import util.load_data as utl
@@ -142,6 +143,20 @@ def create_raw_signal_figure(session_id: str, folder_name: str, shape: dict, sha
     return fig, names, time_start, time_end
 
 
+def create_empty_figure_with_text(text: str):
+    fig = go.Figure()
+    fig.add_annotation(
+        x=0.5, y=0.5,
+        xref="paper", yref="paper",
+        text=text,
+        showarrow=False,
+        font=dict(size=24),
+    )
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False)
+    return fig
+
+
 def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: list[str], figure_shapes: dict[str:list], raw_signal_figure_ids: list[str], relayout_data: dict, signal_graph_type: str):
 
     # get the logger
@@ -174,13 +189,22 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
     # get the current time as an into to grant unique ids
     currtime = str(time.time_ns())
 
-    # create the figure
-    fig = None
-    text_notification = None
+    # get the timestamps
     time_start, time_end = pd.Timestamp(0), pd.Timestamp(0)
+
+    # check if we have too many shapes already
     if len(shapes) > MAX_PLOTLY_SHAPES-3:
-        text_notification = dash.html.Div([dash.html.A("Too many shapes", href='https://plotly.com/python/performance/'), ". Please delete some. Otherwise, rendering will fail."])
+        text_notification = '<a href="https://plotly.com/python/performance/">Too many shapes</a>. Please delete some. Otherwise, rendering will fail.'
+        fig = create_empty_figure_with_text(str(text_notification))
         logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many shapes: {len(shapes)=}.")
+
+    # check if we want to draw too many shapes
+    elif abs(shape_y1-shape_y0)+1 > RAW_SIGNAL_PLOT_MAXIMUM_NUMBER:
+        text_notification = "Too many signals in this selection"
+        fig = create_empty_figure_with_text(str(text_notification))
+        logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many signals: ({shape_y0=}, {shape_y1=}).")
+
+    # draw the figure
     else:
         # make the figure
         fig, names, time_start, time_end = create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names)
@@ -212,7 +236,6 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
 
     # create the new div
     new_raw_plot = dash.html.Div(children=[dash.html.H3(make_raw_signal_plot_title(idx)),
-                                      text_notification,
                                       dash.html.Details(children=[
                                           dash.dcc.Loading(children=[
                                               dash.html.Div(children=[
@@ -251,6 +274,7 @@ def move_score_shape(session_id: str, folder_name: str, signal_names: list[str],
     # create our patch objects for our figure
     figure_shape_patch = dash.Patch()
     graph_patch = dash.Patch()
+    raw_container_patch = dash.no_update
 
     # extract the current shape information
     pattern = re.compile(r'\[(\d+)]\.(\w+)$')
@@ -276,11 +300,6 @@ def move_score_shape(session_id: str, folder_name: str, signal_names: list[str],
     div_dx = shapes_idces.index(shape_dx)
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Moved shape {shape_dx} with corresponding div {div_dx}.")
 
-    # check whether we have too many shapes
-    if div_dx + 1 > MAX_PLOTLY_SHAPES-3:
-        logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many shapes. Ignore redraw of plot {div_dx}.")
-        raise dash.exceptions.PreventUpdate
-
     # build a dummy shape with all the necessary information
     shape_update = {key[1]: val for key, val in elements_dict.items()}
 
@@ -291,11 +310,25 @@ def move_score_shape(session_id: str, folder_name: str, signal_names: list[str],
     # update the shape
     shape_y0, shape_y1 = shape_update_patch(shape, figure_shape_patch, shape_dx, None)
 
+    # check whether we have too many shapes
+    if div_dx + 1 > MAX_PLOTLY_SHAPES - 3:
+        logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many shapes. Ignore redraw of plot {div_dx}.")
+        raise dash.exceptions.PreventUpdate
+
     # get the id of the figure we want change (offset by one since the first is the heatmap)
     target_raw_signal_figure_id = raw_signal_figure_ids[div_dx+1]
 
-    # create the figure and embed it into a dcc graph
-    fig, _, time_start, time_end = create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names)
+    # check whether we want to draw too many signals per shape
+    if abs(shape_y1 - shape_y0) + 1 > RAW_SIGNAL_PLOT_MAXIMUM_NUMBER:
+        logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many signals: ({shape_y0=}, {shape_y1=}).")
+        fig = create_empty_figure_with_text("Too many signals in this selection")
+        time_start  = pd.Timestamp(1)
+        time_end = pd.Timestamp(0)
+    # create the figure from the newly selected data
+    else:
+        fig, _, time_start, time_end = create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names)
+
+    # embed figure into a dcc graph
     graph = dash.dcc.Graph(figure=fig, id=target_raw_signal_figure_id)
 
     # get the line from the heatmap figure
@@ -328,7 +361,7 @@ def move_score_shape(session_id: str, folder_name: str, signal_names: list[str],
     # update the shape dict
     figure_shapes[trigger_id][shape_dx] = shape
 
-    return figure_shape_patch, update_list, dash.no_update, figure_shapes
+    return figure_shape_patch, update_list, raw_container_patch, figure_shapes
 
 
 def draw_lines_on_click(click_data, figure_ids: list[str], figure_shapes: dict[str: list], line_keywords: [dict[str:] | None] = None):

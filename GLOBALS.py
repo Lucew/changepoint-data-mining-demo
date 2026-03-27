@@ -24,6 +24,9 @@ MAX_SIGNALS = 500
 # More Information: https://plotly.com/python/performance/
 MAX_PLOTLY_SHAPES = 8
 
+# define the maximum number of signals per raw signal plot
+RAW_SIGNAL_PLOT_MAXIMUM_NUMBER = 5
+
 # the size of the cache for the cached data (is mostly equivalent to the number of planned users)
 # take care: data is stored in memory for every user!
 CACHE_SIZE = 1
