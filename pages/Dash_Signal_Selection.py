@@ -79,6 +79,11 @@ def select_signals_scatter(session_id: str, folder_name: str, graph_id, selected
     # get the signals we selected
     selected_signals = [point["customdata"][0] for point in selected_data["points"]]
 
+    # exit early in case we selected too many signals
+    if len(selected_signals) > MAX_HEATMAP_SELECT_SIGNALS:
+        fig = uheat.create_empty_figure_with_text(f"Too many signals to display the heatmap without lag (Current number: {len(selected_signals)} > {MAX_HEATMAP_SIGNALS=}). Please select less signals in the scatter plot.")
+        return fig, False, False, True, True, "", [], children_patch, dict()
+
     # get the regression results
     regression_results, _, _ = prep.preprocess_regression_results(session_id, folder_name)
 
@@ -90,7 +95,8 @@ def select_signals_scatter(session_id: str, folder_name: str, graph_id, selected
 
     # compute the weighted scoring for each of the selected signals
     # TODO mean correlation value per cluster as hint whether it is a good cluster
-    result_df = procd.compute_weighted_residual_norm(regression_results, selected_signals, scores, coming_from='signal-selection')
+    result_df = procd.compute_weighted_residual_norm(regression_results, selected_signals, scores,
+                                                     coming_from='signal-selection')
 
     # normalize the signals
     result_df = prep.normalization(result_df)
@@ -325,7 +331,8 @@ clientside_callback(
 )
 
 # dash app layout ------------------------------------------------------------------------------------------------------
-def layout(session_id: str, folder_name: str, **kwargs):
+def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str:str]] = None,
+           selection_values = list[list[str]], **kwargs):
 
     # check whether we have a folder
     if not folder_name:
@@ -343,8 +350,13 @@ def layout(session_id: str, folder_name: str, **kwargs):
     # variable naming seems complex, but as these are global to the app, these complex names make sure we do not
     # accidentally reuse them
     _global_bokeh_df, _global_default_perplexity, _global_corr_thresh = utsne.create_tsne(session_id, folder_name)
-    _global_measurement_types = list(_global_bokeh_df["measurement"].unique())
-    _global_component_types = list(_global_bokeh_df["component"].unique())
+
+    # _global_measurement_types = list(_global_bokeh_df["measurement"].unique())
+    # _global_component_types = list(_global_bokeh_df["component"].unique())
+
+    # get the selections
+    _global_component_types = tuple(selection_values[2])
+    _global_measurement_types = tuple(selection_values[3])
 
     # get the explanation text from the file
     with open("./assets/explanation.txt") as filet:
@@ -451,7 +463,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                                 dbc.AccordionItem(children=[
                                     dcc.Graph(
                                         id='scatter-graph',
-                                        figure=uscat.create_scatter(session_id, folder_name),
+                                        figure=uscat.create_scatter(session_id, folder_name, selected_components=_global_component_types, selected_measurements=_global_measurement_types),
                                         style={'width': f'40vw', 'height': '30vw'},
                                     ),
                                     html.Div(id="graph-loading-signal", style={"display": "none"}),
@@ -472,7 +484,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                                 dbc.AccordionItem(children=[
                                 dcc.Graph(
                                     id='scatter-graph3d',
-                                    figure=uscat.create_scatter_3d(session_id, folder_name),
+                                    figure=uscat.create_scatter_3d(session_id, folder_name, selected_components=_global_component_types, selected_measurements=_global_measurement_types),
                                     style={'width': f'40vw', 'height': '30vw'},
                                 ),
                                 ],

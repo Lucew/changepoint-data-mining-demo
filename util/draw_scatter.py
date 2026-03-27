@@ -60,11 +60,11 @@ def create_scatter(session_id: str, folder_name: str, perplexity: int = None, co
 
 
 def create_scatter_3d(session_id: str, folder_name: str,
-                      perplexity: int = None, correlation_threshold: float = None,
+                      perplexity: int = None, correlation_threshold: float = None, window_size: int = None,
                       selected_components: list[str] = None, selected_measurements: list[str] = None):
 
     # get the scatter plot information
-    bokeh_df = prepare_plot_data(session_id, folder_name, perplexity, correlation_threshold, selected_components, selected_measurements)
+    bokeh_df = prepare_plot_data(session_id, folder_name, perplexity, correlation_threshold, window_size, selected_components, selected_measurements)
 
     # make the figure
     # NOTE: Linking the 3D plot to the 2D is not trivial as selectedpoints is not a valid option

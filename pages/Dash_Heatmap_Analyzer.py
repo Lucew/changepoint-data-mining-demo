@@ -238,6 +238,7 @@ def make_selection_accordion(signal_ids: list[str]):
 def get_initial_figures(session_id: str, folder_name: str, target_window_size: int = None,
                         component_selection: list[str] = None, measurement_selection: list[str] = None
                         ) -> [list[tuple[str,...],...], int, list[int,...], plotly.graph_objs.Figure, pd.Timestamp, pd.Timestamp, plotly.graph_objs.Figure]:
+    start = time.perf_counter()
 
     # load the data into memory to get some information
     scores, _, window_sizes, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
@@ -266,13 +267,17 @@ def get_initial_figures(session_id: str, folder_name: str, target_window_size: i
         raise ValueError(f"{target_window_size=} must be in {window_sizes=}.")
 
     # create the heatmap figure
-    if len(signal_ids) <= MAX_HEATMAP_SIGNALS:
-        heatmap_figure, start_time, end_time = create_heatmap(session_id=session_id, folder_name=folder_name, window_size=target_window_size)
+    if 0 < len(signal_ids) <= MAX_HEATMAP_SIGNALS:
+        heatmap_figure, start_time, end_time = create_heatmap(session_id=session_id, folder_name=folder_name, window_size=target_window_size, signal_list=tuple(ele[0] for ele in signal_ids))
+    elif not signal_ids:
+        heatmap_figure = uheat.create_empty_figure_with_text(f"Please select signals using the sidebar. Current selection yields {len(signal_ids)} signals.")
+        start_time = pd.Timestamp(1)
+        end_time = pd.Timestamp(0)
     else:
         heatmap_figure = uheat.create_empty_figure_with_text(f"Too many signals to display the heatmap without lag (Current number: {len(signal_ids)} > {MAX_HEATMAP_SIGNALS=}). Please select signals in the sidebar.")
         start_time = pd.Timestamp(1)
         end_time = pd.Timestamp(0)
-    logger.info(f"[{__name__}] Created completely new heatmap figure.")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created completely new heatmap and scatter figure in {time.perf_counter() - start:0.2f} seconds.")
 
     # create the tsne figure
     scatter_figure = uscat.create_scatter(session_id, folder_name, correlation_threshold=-2.0, window_size=target_window_size, selected_signals=[ele[0] for ele in signal_ids])
@@ -286,12 +291,12 @@ def layout(session_id: str = "", folder_name: str="", selection_names: dict[str:
     start = time.perf_counter()
 
     # check whether we have a folder
-    if not folder_name:
+    if not folder_name or len(selection_values) < 3:
         return html.H1("Please upload a file using the sidebar.")
 
     # get the selections
-    component_selection = selection_values[2]
-    measurement_selection = selection_values[3]
+    component_selection = tuple(selection_values[2])
+    measurement_selection = tuple(selection_values[3])
 
     # create the initial figures and infos
     signal_ids, initial_window_size, window_sizes, heatmap_figure, start_time, end_time, scatter_figure = get_initial_figures(session_id, folder_name, component_selection=component_selection, measurement_selection=measurement_selection)
@@ -412,7 +417,7 @@ def layout(session_id: str = "", folder_name: str="", selection_names: dict[str:
     ],
     )
 
-    logger.info(f"[{__name__}] Build the heatmap analysis page in {time.perf_counter() - start:0.2f} s.")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Build the heatmap analysis page in {time.perf_counter() - start:0.2f} s.")
     return layout_definition
 
 

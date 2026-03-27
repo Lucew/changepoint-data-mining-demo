@@ -489,7 +489,7 @@ def delete_shapes(delete_event_data: dict, raw_signal_fig_ids: list, figure_shap
     active_idx = set(active_idx)
 
     # write to logger
-    logger.info(f"[{__name__}][{inspect.stack()[0][3]}]Triggered Element {dash.ctx.triggered_id}. We want to delete!: {active_idx=}.")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Triggered Element {dash.ctx.triggered_id}. We want to delete!: {active_idx=}.")
 
     # update the remaining shape names and the headers of the remaining raw signal plots
     new_index = 1

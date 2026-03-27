@@ -131,12 +131,17 @@ side_bar_content = dbc.Container([
         ],
     ),
     html.Br(),
+    html.Div(["Return to ", html.A("Home", href="/"), " before selecting."]),
+    html.Div(["This prevents unnecessary page reloads."]),
     dbc.Accordion(
         children=[],
         style={"display": "none"},
         start_collapsed=True,
         id="signal-selection-accordion",
     ),
+    html.Br(),
+    html.Div(id="main-page-signal-number", style={"textAlign": "center"}),  # to store the amount of signals leftover
+    html.Br(),
     html.Br(),
     # Collapsible container (hidden initially)
     dbc.Accordion(
@@ -148,7 +153,10 @@ side_bar_content = dbc.Container([
         start_collapsed=True,
         id="page-link-container",
     ),
-], style={"maxWidth": "25rem"}, fluid=True)
+
+],
+    style={"maxWidth": "25rem"}, fluid=True
+)
 
 # set the final layout
 app.layout = html.Div(
@@ -376,6 +384,7 @@ def available_files(session_id: str, folder_name: str, filename: str, upload_sta
 
     return button_disabled, page_link_style, page_button_style, upload_text, sidebar_symbol, component_selection_style
 
+
 @app.callback(
     Output("signal-selection-accordion", "children"),
     State("session-id", "data"),
@@ -404,6 +413,35 @@ def update_signal_selection_accordion(session_id: str, folder_name: str, style_c
                                    title=f"{name.capitalize()} Selection")
                  for name, selections in selection_lists.items()]
     return item_list
+
+
+@app.callback(
+    Output("main-page-signal-number", "children"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
+    Input({"type": "main-page-selection-dropdown", "index": dash.ALL}, "value"),
+    prevent_initial_call=True,
+)
+def calculate_signal_number(session_id: str, folder_name: str, selections: list[list[str]]) -> str:
+
+    # get the selected stuff
+    component_selection = selections[2]
+    measurement_selection = selections[3]
+
+    # load the data into memory to get some information
+    scores, _, window_sizes, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+
+    # define the initially used signals
+    signal_ids = list(scores.keys())
+
+    # parse the signals and only keep the ones we want to select
+    signal_ids = [(name, *parsedtag)
+                  for name in signal_ids
+                  if len(parsedtag := ukks.parse_kks_tag(name))
+                  and (component_selection is None or parsedtag[2] in component_selection)
+                  and (measurement_selection is None or parsedtag[3] in measurement_selection)]
+
+    return f"Currently {len(signal_ids)} signals are selected."
 
 
 @app.callback(
