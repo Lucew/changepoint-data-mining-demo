@@ -20,7 +20,7 @@ DEFAULT_UPLOAD_TEXT_SUCCESS = f"✅ Uploaded"
 
 # define a reduced sensor set
 MAX_SIGNALS = 800
-MOCK_SIGNALS = True
+MOCK_SIGNALS = False
 
 # define the maximum number of signals for the heatmap
 MAX_HEATMAP_SIGNALS = 150
