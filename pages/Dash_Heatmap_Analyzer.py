@@ -472,7 +472,7 @@ def redraw_scatter_graph(session_id: str, folder_name: str, window_size: str, si
     ], # this deactivates the figure while running our function
     prevent_initial_call=True,
 )
-def modify_heatmap_content(session_id: str, folder_name: str, all_signal_names: list[str,...], window_size: str, normalization_window_size: str, signal_store: dict, scatter_select: dict):
+def modify_heatmap_content(session_id: str, folder_name: str, all_signal_names: list[str], window_size: str, normalization_window_size: str, signal_store: dict, scatter_select: dict):
 
     # make a patch object
     heatmap_patch = Patch()
@@ -487,7 +487,7 @@ def modify_heatmap_content(session_id: str, folder_name: str, all_signal_names: 
     if ctx.triggered_id == "heatmap-select-window-size" or ctx.triggered_id == "heatmap-normalization-input":
 
         # make a new heatmap
-        new_heatmap, _, _ = create_heatmap(session_id, folder_name, window_size=int(window_size), normalization_window_size=int(normalization_window_size) if normalization_window_size else None)
+        new_heatmap, _, _ = create_heatmap(session_id, folder_name, window_size=int(window_size), signal_list=tuple(all_signal_names), normalization_window_size=int(normalization_window_size) if normalization_window_size else None)
 
         # extract the image data and put it into the patch
         heatmap_patch["data"][0]["z"] = new_heatmap["data"][0]["z"]
