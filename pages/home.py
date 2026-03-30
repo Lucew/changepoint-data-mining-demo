@@ -15,4 +15,16 @@ def layout(session_id: str, folder_name: str, **kwargs):
 
     # make a style update
     style_update = {"display": "flex", "justifyContent": "center", "alignItems": "center", "height": "100vh"}
-    return html.Div([html.Div([html.H1("Welcome to Changepoint!"), html.Br(), html.Div(idea_text, style={"display": "flex", "justifyContent": "center", "alignItems": "center", "fontSize": "Large"}), html.Br(), html.Br()], style=ustyle.div_styles['div'] | {"marginTop": "auto", "width": "30%"})] , style=style_update)
+    return html.Div([
+        html.Div([
+            html.H1("Welcome to Changepoint!"),
+            html.Br(),
+            html.Div(
+                idea_text,
+                style={
+                    "display": "flex", "justifyContent": "center", "alignItems": "center", "fontSize": "Large"
+                }),
+            html.Br(),
+            html.Br()],
+            style=ustyle.div_styles['div'] | {"marginTop": "auto", "width": "30%"})] ,
+        style=style_update)
