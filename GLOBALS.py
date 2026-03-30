@@ -2,14 +2,8 @@ import enum
 import os
 import argparse
 import logging
+import warnings
 
-
-# make some enums
-class Level(enum.Enum):
-    PROD = -1
-    INFO = 0
-    DEMO = 1
-    DEBUG = 2
 
 # define passwords
 DELETE_PASSWORD = os.environ.get("CPDASH_DELETE_PASSWORD", "changeme")
@@ -41,6 +35,13 @@ CACHE_SIZE = 1
 
 # SOME FUNCTIONALITY BASED ON THE GLOBAL SETTINGS ----------------------------------------------------------------------
 
+# make some enums
+class Level(enum.Enum):
+    PROD = -1
+    INFO = 0
+    DEMO = 1
+    DEBUG = 2
+
 # parse the input arguments
 __parser = argparse.ArgumentParser(description='Dash Startup Script.')
 __mode_arg = __parser.add_argument('--mode', '-m', default='debug', help=f'Set the application mode. Possible values: {list(ele.name for ele in Level)}')
@@ -55,6 +56,10 @@ __application_level_string = __args.mode.upper()
 if __application_level_string not in __application_level_list:
     raise argparse.ArgumentError(__mode_arg, f"Application level must be one of {__application_level_list}. You provided {__application_level_string}.")
 APPLICATION_LEVEL = Level[__application_level_string]
+
+# warn for windows demo
+if APPLICATION_LEVEL == Level.DEMO and os.name == 'nt':
+    warnings.warn(f"{APPLICATION_LEVEL=} does not work as well with windows.")
 
 # check whether the data folder exists
 DATA_FOLDER = __args.folder
