@@ -417,7 +417,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
     start = time.perf_counter()
 
     # log the request
-    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Requested the signal selection page.")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Requested the simultaneous events page.")
 
     # check whether we have a folder
     if not folder_name:
@@ -556,7 +556,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
     )
 
     # log the duration
-    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created the signal selection page in {time.perf_counter() - start:0.2f} s.")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created the simultaneous events page in {time.perf_counter() - start:0.2f} s.")
 
     return layout_definition
 
