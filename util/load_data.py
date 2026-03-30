@@ -14,7 +14,7 @@ import util.cache_registry as ucache
 from GLOBALS import *
 
 
-@ucache.lru_cache(1)
+@ucache.lru_cache(CACHE_SIZE)
 def load_data(folder_path: str, mock_signals: bool = False, reduce_count: typing.Optional[int] = None) -> tuple[dict[str: pdtypes.DataFrameGroupBy], dict[str: pd.DataFrame], tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
     start = time.perf_counter()
 
