@@ -38,17 +38,53 @@ def parse_kks_tag(tag: str) -> [str, str, str, str, str]:
         raise ValueError(f"We could not parse {tag=}. Something with the measurement type is off.")
     measurement_type = tag_groups[3]
 
-    return turbine, block, component, measurement_type, sigtype
+    return block, turbine, component, measurement_type, sigtype
 
 
-def get_info_from_list(signal_list: list[str, ...]) -> dict[str: list[str],...]:
-    turbines, blocks, components, measurements, sigtypes = zip(*map(parse_kks_tag, signal_list))
-    turbines = list(set(turbines))
-    blocks = list(set(blocks))
-    components = list(set(components))
-    measurements = list(set(measurements))
-    sigtypes = list(set(sigtypes))
-    return {"block": blocks, "turbine": turbines, "component": components, "measurement": measurements, "Type": sigtypes}
+def get_info_from_list(signal_list: list[str], unique: bool = True) -> dict[str: list[str]]:
+    blocks, turbines, components, measurements, sigtypes = zip(*map(parse_kks_tag, signal_list))
+
+    # make lists
+    turbines = list(turbines)
+    blocks = list(blocks)
+    components = list(components)
+    measurements = list(measurements)
+    sigtypes = list(sigtypes)
+
+    if unique:
+        turbines = list(set(turbines))
+        blocks = list(set(blocks))
+        components = list(set(components))
+        measurements = list(set(measurements))
+        sigtypes = list(set(sigtypes))
+
+    return {"block": blocks, "turbine": turbines, "component": components, "measurement": measurements, "type": sigtypes}
+
+
+def filter_components(signal_names: list[str],
+                      block_list: list[str] = None,
+                      turbine_list: list[str] = None,
+                      component_list: list[str] = None,
+                      measurement_list: list[str] = None,
+                      type_list: list[str] = None) -> list[bool]:
+
+    # transform into sets
+    block_list = set(block_list) if block_list is not None else None
+    turbine_list = set(turbine_list) if turbine_list is not None else None
+    component_list = set(component_list) if component_list is not None else None
+    measurement_list = set(measurement_list) if measurement_list is not None else None
+    type_list = set(type_list) if type_list is not None else None
+
+    result_list = [
+        len(parsed_tag := parse_kks_tag(signal_name))
+        and (block_list is None or parsed_tag[0] in block_list)
+        and (turbine_list is None or parsed_tag[1] in turbine_list)
+        and (component_list is None or parsed_tag[2] in component_list)
+        and (measurement_list is None or parsed_tag[3] in measurement_list)
+        and (type_list is None or parsed_tag[4] in type_list)
+        for signal_name in signal_names
+    ]
+    return result_list
 
 
 if __name__ == "__main__":

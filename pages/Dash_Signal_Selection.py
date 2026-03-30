@@ -20,6 +20,7 @@ import util.styles as usty
 import util.create_tsne as utsne
 import util.draw_heatmap as uheat
 import util.draw_scatter as uscat
+import util.process_kks as ukks
 from GLOBALS import *
 
 
@@ -204,9 +205,13 @@ def click_in_residuals(click_data1, click_data2):
     prevent_initial_call=True)
 def update_scatter_plots(session_id: str, folder_name: str,
                          value, component_list, measurement_list, correlation_threshold):
-    return (uscat.create_scatter(session_id, folder_name, value, correlation_threshold, component_list, measurement_list),
-            uscat.create_scatter_3d(session_id, folder_name,value, correlation_threshold, component_list, measurement_list))
 
+    # make the figures for both the 2D and 3D scatter
+    fig2d = uscat.create_scatter(session_id, folder_name, value, correlation_threshold,
+                                 selected_components=component_list, selected_measurements=measurement_list)
+    fig3d = uscat.create_scatter_3d(session_id, folder_name,value, correlation_threshold,
+                                    selected_components=component_list, selected_measurements=measurement_list)
+    return fig2d, fig3d
 
 @callback(
     Output('histogram-graph', 'figure'),
@@ -340,29 +345,30 @@ def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str
     # log the request
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Requested the signal selection page.")
 
-    # check whether we have a folder
-    if not folder_name:
+    # check whether we have a folder and we selected some components
+    if not folder_name or not selection_values:
         return html.H1("Please upload a file using the sidebar.")
 
     # check whether we have all necessary data
-    _, _, _, anomaly_scores, distances, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+    scores, _, _, anomaly_scores, distances, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
     if distances is None:
         return html.H1("Your zip-file does not contain the anomaly_scores.parquet or/and the distances.csv file(s).")
 
     # define an event for our custom event listener to drag and drop buttons
     delete_event = {"event": 'shapeDeletion', "props": ["detail.children", "detail.shapes"]}
 
-    # get the result ones before running the app, so we can set some default values
-    # variable naming seems complex, but as these are global to the app, these complex names make sure we do not
-    # accidentally reuse them
-    _global_bokeh_df, _global_default_perplexity, _global_corr_thresh = utsne.create_tsne(session_id, folder_name)
-
-    # _global_measurement_types = list(_global_bokeh_df["measurement"].unique())
-    # _global_component_types = list(_global_bokeh_df["component"].unique())
-
     # get the selections
     _global_component_types = tuple(selection_values[2])
     _global_measurement_types = tuple(selection_values[3])
+
+    # get the number of scores that are leftover after the selection
+    scores_valid = ukks.filter_components(scores.keys(), component_list=_global_component_types, measurement_list=_global_measurement_types)
+
+    # get the result ones before running the app, so we can set some default values
+    # variable naming seems complex, but as these are global to the app, these complex names make sure we do not
+    # accidentally reuse them
+    _global_default_perplexity = utsne.get_default_perplexity(sum(scores_valid))
+    _global_corr_thresh = utsne.get_default_corr_threshold()
 
     # get the explanation text from the file
     with open("./assets/explanation.txt") as filet:
@@ -469,7 +475,7 @@ def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str
                                 dbc.AccordionItem(children=[
                                     dcc.Graph(
                                         id='scatter-graph',
-                                        figure=uscat.create_scatter(session_id, folder_name, selected_components=_global_component_types, selected_measurements=_global_measurement_types),
+                                        figure=uscat.create_scatter(session_id, folder_name, perplexity=_global_default_perplexity, correlation_threshold=_global_corr_thresh, selected_components=_global_component_types, selected_measurements=_global_measurement_types),
                                         style={'width': f'40vw', 'height': '30vw'},
                                     ),
                                     html.Div(id="graph-loading-signal", style={"display": "none"}),
@@ -490,7 +496,7 @@ def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str
                                 dbc.AccordionItem(children=[
                                 dcc.Graph(
                                     id='scatter-graph3d',
-                                    figure=uscat.create_scatter_3d(session_id, folder_name, selected_components=_global_component_types, selected_measurements=_global_measurement_types),
+                                    figure=uscat.create_scatter_3d(session_id, folder_name, perplexity=_global_default_perplexity, correlation_threshold=_global_corr_thresh, selected_components=_global_component_types, selected_measurements=_global_measurement_types),
                                     style={'width': f'40vw', 'height': '30vw'},
                                 ),
                                 ],
@@ -508,7 +514,7 @@ def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str
                 ),
             ]),
             "Perplexity value",
-            dcc.Slider(1, _global_bokeh_df.shape[0] // 2, 2,
+            dcc.Slider(1, distances.shape[0] // 2, 2,
                        value=_global_default_perplexity,
                        id='perplexity-slider',
                        ),

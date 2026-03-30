@@ -11,12 +11,17 @@ import sklearn.manifold as skmani
 import util.cache_registry as ucache
 import util.prepocessing as prep
 import util.load_data as utl
+import util.process_kks as ukks
 from GLOBALS import *
 
 
 @ucache.cache
 def get_random_seed():
     return 3
+
+
+def get_default_corr_threshold():
+    return 0.90
 
 
 @ucache.lru_cache(maxsize=CACHE_SIZE)
@@ -29,7 +34,7 @@ def filter_regression_results(session_id: str, folder_name: str, correlation_thr
 
     # create default correlation threshold if not given
     if correlation_threshold is None:
-        correlation_threshold = 0.90
+        correlation_threshold = get_default_corr_threshold()
 
     # find all the signal names that have larger correlation than the threshold
     mask = complete_max_correlation["correlation"] > correlation_threshold
@@ -75,7 +80,12 @@ def window_size_correlation(session_id: str, folder_name: str, window_size: int)
     return score_corr
 
 
-@ucache.lru_cache(maxsize=CACHE_SIZE)
+def get_default_perplexity(sensor_number: int) -> int:
+    return int(np.sqrt(sensor_number))
+
+
+# we have to do twice the cache size as this is used for two pages within our application
+@ucache.lru_cache(maxsize=CACHE_SIZE*2)
 def create_tsne(session_id: str, folder_name: str, perplexity: int = None, correlation_threshold: float = None, window_size: int = None) -> (pd.DataFrame, int, float):
     # TODO: Recompute TSNE when different signals are selected
     logger = logging.getLogger("frontend-logger")
@@ -98,7 +108,10 @@ def create_tsne(session_id: str, folder_name: str, perplexity: int = None, corre
     # compute default perplexity
     # print("Parameters", session_id, folder_name, perplexity, correlation_threshold)
     if perplexity is None:
-        perplexity = int(np.sqrt(distance_matrix.shape[0]))
+        perplexity = get_default_perplexity(distance_matrix.shape[0])
+    if perplexity >= distance_matrix.shape[0]:
+        logger.warning(f"[{__name__}][{inspect.stack()[0][3]}] Perplexity larger than distance matrix. Set to maximum number: {distance_matrix.shape[0]=}.")
+        perplexity = distance_matrix.shape[0]
 
     # compute the TSNE representation of the data
     tsne = skmani.TSNE(metric='precomputed', init='random', perplexity=perplexity, random_state=get_random_seed())
@@ -107,6 +120,14 @@ def create_tsne(session_id: str, folder_name: str, perplexity: int = None, corre
     # compute the TSNE representation of the data
     tsne3d = skmani.TSNE(n_components=3, metric='precomputed', init='random', perplexity=perplexity, random_state=get_random_seed())
     transf3d = tsne3d.fit_transform(distance_matrix)
+
+    # update the kks tag processing
+    info_dict = ukks.get_info_from_list(distance_matrix.columns, unique=False)
+    blocks = info_dict["block"]
+    turbines = info_dict["turbine"]
+    components = info_dict["component"]
+    measurements = info_dict["measurement"]
+    types = info_dict["type"]
 
     # create the dataframe from the information
     # make the dataframe that we want to have
@@ -119,13 +140,13 @@ def create_tsne(session_id: str, folder_name: str, perplexity: int = None, corre
                              'Max. Corr.': [f"{ele:0.3f} " for ele in
                                             list(max_correlation.loc[distance_matrix.columns]["correlation"])],
                              'Anomaly Score': anomaly_scores.loc[distance_matrix.columns, 'score'] if anomaly_scores is not None else [None]*transf.shape[0],
-                             'block': [col[1:2] for col in list(distance_matrix.columns)],
-                             'block_turbine': [col[1:3] for col in list(distance_matrix.columns)],
-                             'turbine': [f'Steam [{col[2:3]}]' if col[2:3] == '0'
-                                         else f'Gas [{col[2:3]}]'
-                                         for col in list(distance_matrix.columns)],
-                             'component': [col[3:6] for col in list(distance_matrix.columns)],
-                             'measurement': [col[8:10] for col in list(distance_matrix.columns)]
+                             'block': blocks,
+                             'block_turbine': [f"{block}{turbine}" for block, turbine in zip(blocks, turbines)],
+                             'turbine': [f'Steam [{turbine}]' if turbine == '0'
+                                         else f'Gas [{turbine}]'
+                                         for turbine in turbines],
+                             'component': components,
+                             'measurement': measurements
                              })
 
     # TODO TSNE perplexity as component group size?
