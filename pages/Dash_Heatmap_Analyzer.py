@@ -478,7 +478,7 @@ def modify_heatmap_content(session_id: str, folder_name: str, all_signal_names: 
     heatmap_patch = Patch()
 
     # make an output for the displayed signal store
-    displayed_signals = signal_store
+    event_type, displayed_signals = unpack_signal_selection_store(signal_store)
 
     # write to logger
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] We have to work on the heatmap ({ctx.triggered_id=}).")
