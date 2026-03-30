@@ -362,7 +362,7 @@ def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str
     _global_measurement_types = tuple(selection_values[3])
 
     # get the number of scores that are leftover after the selection
-    scores_valid = ukks.filter_components(scores.keys(), component_list=_global_component_types, measurement_list=_global_measurement_types)
+    scores_valid = ukks.signal_name_mask(scores.keys(), component_list=_global_component_types, measurement_list=_global_measurement_types)
 
     # get the result ones before running the app, so we can set some default values
     # variable naming seems complex, but as these are global to the app, these complex names make sure we do not

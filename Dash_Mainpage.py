@@ -15,7 +15,6 @@ import plotly
 from dash import html, dcc, Output, Input, State, ctx
 import dash_bootstrap_components as dbc
 import pandas as pd
-from dash.exceptions import PreventUpdate
 
 import util.load_data as utl
 import util.cache_registry as ucache
@@ -474,7 +473,7 @@ def calculate_signal_number(session_id: str, folder_name: str, current_location:
 
 
     # parse the signals and only keep the ones we want to select
-    signal_number = sum(ukks.filter_components(scores.keys(), component_list=component_selection, measurement_list=measurement_selection))
+    signal_number = sum(ukks.signal_name_mask(scores.keys(), component_list=component_selection, measurement_list=measurement_selection))
 
     # get some logging information
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Selected a subset of signals {signal_number=}.")

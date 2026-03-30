@@ -1,6 +1,7 @@
 import logging
 import time
 import inspect
+import itertools
 
 import plotly.graph_objs
 from dash import dcc, html, Input, Output, State, ctx, ClientsideFunction, register_page, clientside_callback, callback, stringify_id, Patch, ALL
@@ -237,28 +238,15 @@ def make_selection_accordion(signal_ids: list[str]):
 
 def get_initial_figures(session_id: str, folder_name: str, target_window_size: int = None,
                         component_selection: list[str] = None, measurement_selection: list[str] = None
-                        ) -> [list[tuple[str,...],...], int, list[int,...], plotly.graph_objs.Figure, pd.Timestamp, pd.Timestamp, plotly.graph_objs.Figure]:
+                        ) -> [list[tuple[str]], int, list[int], plotly.graph_objs.Figure, pd.Timestamp, pd.Timestamp, plotly.graph_objs.Figure]:
     start = time.perf_counter()
 
     # load the data into memory to get some information
     scores, _, window_sizes, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
-    score_df, _, _ = process_signals(session_id=session_id, folder_name=folder_name, window_size=min(window_sizes))
-
-    # define the initially used signals
-    signal_ids = list(score_df.columns)
-
-    # make the default values
-    if component_selection is not None:
-        component_selection = set(component_selection)
-    if measurement_selection is not None:
-        measurement_selection = set(measurement_selection)
 
     # parse the signals and only keep the ones we want to select
-    signal_ids = [(name, *parsedtag)
-                   for name in signal_ids
-                   if len(parsedtag := ukks.parse_kks_tag(name))
-                   and (component_selection is None or parsedtag[2] in component_selection)
-                   and (measurement_selection is None or parsedtag[3] in measurement_selection)]
+    signal_ids = list(scores.keys())
+    signal_ids = ukks.signal_name_filter(signal_ids, component_list=component_selection, measurement_list=measurement_selection)
 
     # get the initial window size
     if target_window_size is None:
@@ -268,7 +256,7 @@ def get_initial_figures(session_id: str, folder_name: str, target_window_size: i
 
     # create the heatmap figure
     if 0 < len(signal_ids) <= MAX_HEATMAP_SIGNALS:
-        heatmap_figure, start_time, end_time = create_heatmap(session_id=session_id, folder_name=folder_name, window_size=target_window_size, signal_list=tuple(ele[0] for ele in signal_ids))
+        heatmap_figure, start_time, end_time = create_heatmap(session_id=session_id, folder_name=folder_name, window_size=target_window_size, signal_list=tuple(signal_ids))
     elif not signal_ids:
         heatmap_figure = uheat.create_empty_figure_with_text(f"Please select signals using the sidebar. Current selection yields {len(signal_ids)} signals.")
         start_time = pd.Timestamp(1)
@@ -280,7 +268,7 @@ def get_initial_figures(session_id: str, folder_name: str, target_window_size: i
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created completely new heatmap and scatter figure in {time.perf_counter() - start:0.2f} seconds.")
 
     # create the tsne figure
-    scatter_figure = uscat.create_scatter(session_id, folder_name, correlation_threshold=-2.0, window_size=target_window_size, selected_signals=[ele[0] for ele in signal_ids])
+    scatter_figure = uscat.create_scatter(session_id, folder_name, correlation_threshold=-2.0, window_size=target_window_size, selected_signals=tuple(signal_ids))
     return signal_ids, target_window_size, window_sizes, heatmap_figure, start_time, end_time, scatter_figure
 
 
@@ -303,7 +291,6 @@ def layout(session_id: str = "", folder_name: str="", selection_names: dict[str:
 
     # create the initial figures and infos
     signal_ids, initial_window_size, window_sizes, heatmap_figure, start_time, end_time, scatter_figure = get_initial_figures(session_id, folder_name, component_selection=component_selection, measurement_selection=measurement_selection)
-    initial_signal_ids = [ele[0] for ele in signal_ids]
 
     # define a custom event for the shape deletion
     delete_event = {"event": 'shapeDeletion', "props": ["detail.children"]}
@@ -313,9 +300,9 @@ def layout(session_id: str = "", folder_name: str="", selection_names: dict[str:
 
     # define the app layout
     layout_definition = html.Div([
-        dcc.Store(id='heatmap-all-signal-store', data=initial_signal_ids.copy()),
-        dcc.Store(id='heatmap-active-signal-store', data=make_signal_selection_store(None, initial_signal_ids)),
-        dcc.Store(id='heatmap-displayed-signal-store', data=initial_signal_ids),
+        dcc.Store(id='heatmap-all-signal-store', data=signal_ids.copy()),
+        dcc.Store(id='heatmap-active-signal-store', data=make_signal_selection_store(None, signal_ids.copy())),
+        dcc.Store(id='heatmap-displayed-signal-store', data=signal_ids.copy()),
         dcc.Store(id="heatmap-figure-shape-store", data={stringify_id(heatmap_id): make_shape_store_entry(start_time, end_time)}),
         html.Div(children=[
             html.H1(f'Change Decoupling Heatmap Analyzer',
@@ -358,7 +345,7 @@ def layout(session_id: str = "", folder_name: str="", selection_names: dict[str:
                 dbc.Col(children=[
                     html.H3("Signal Selection"),
                     dcc.Loading(children=[
-                        make_selection_accordion(initial_signal_ids)
+                        make_selection_accordion(signal_ids)
                     ],
                         type="circle",
                         overlay_style={"visibility": "visible", "filter": "blur(2px)"},
