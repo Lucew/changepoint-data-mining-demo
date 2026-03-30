@@ -8,12 +8,14 @@ import shutil
 import logging
 import datetime
 import argparse
+import inspect
 
 import dash
 import plotly
-from dash import html, dcc, Output, Input, State
+from dash import html, dcc, Output, Input, State, ctx
 import dash_bootstrap_components as dbc
 import pandas as pd
+from dash.exceptions import PreventUpdate
 
 import util.load_data as utl
 import util.cache_registry as ucache
@@ -131,7 +133,16 @@ side_bar_content = dbc.Container([
         ],
     ),
     html.Br(),
-    html.Div(["Return to ", html.A("Home", href="/"), " before selecting."]),
+    html.Div([
+        "Return to ",
+        html.A("Home", id="main-page-return-home",
+               style={
+                   "color": "#0d6efd",
+                   "textDecoration": "underline",
+                   "cursor": "pointer"
+               }),
+        " before selecting signals."
+    ]),
     html.Div(["This prevents unnecessary page reloads."]),
     html.Br(),
     html.Div(id="main-page-signal-number", style={"textAlign": "center"}),  # to store the amount of signals leftover
@@ -163,6 +174,7 @@ side_bar_content = dbc.Container([
 app.layout = html.Div(
     [
         dcc.Location(id="url"),
+        dcc.Location(id="main-page-refresh", refresh="callback-nav"),
 
         # store flags + messages
         dcc.Store(id="delete-modal-open", data=False, storage_type="session"),
@@ -253,6 +265,13 @@ app.layout = html.Div(
 )
 
 
+@app.callback(
+    Output("main-page-refresh", "href"),
+    Input("main-page-return-home", "n_clicks"),
+    prevent_initial_call=True)
+def get_home(n_clicks: int):
+    return "/"
+
 
 # upload the zipfile and unpack it
 @app.callback(
@@ -266,6 +285,10 @@ app.layout = html.Div(
     prevent_initial_call=True,
 )
 def handle_zip_upload(contents: str, filename: str, session_id: str):
+
+    # log the upload
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Attempt to upload a file.")
+
     # check the obvious problems
     if not filename:
         return "", "", "", "/"
@@ -340,7 +363,7 @@ def delete_own_files(n: int, session_id: str):
     ucache.clear_all_caches()
 
     # log the deletion
-    logger.info(f"Deleted files from session {session_id}.")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Deleted files from session {session_id}.")
 
     # reset the folder (and redirect to main page)
     return "", "",  "", None, None, "/"
@@ -348,6 +371,8 @@ def delete_own_files(n: int, session_id: str):
 
 
 # a function to check available files
+# We explicitly do not want to prevent this initial call to allow existing files to be loader upon restart
+# of the application
 @app.callback(
     Output("delete-file-button", "disabled"),
     Output("page-link-container", "style"),
@@ -383,6 +408,9 @@ def available_files(session_id: str, folder_name: str, filename: str, upload_sta
     # the sidebar symbol
     sidebar_symbol = "✔" if file_exists else ("☝" if not upload_status else "❌")
 
+    # log the file check
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Checked available files from {session_id=}. Triggered element: {ctx.triggered_id}.")
+
     return button_disabled, page_link_style, page_button_style, upload_text, sidebar_symbol, component_selection_style
 
 
@@ -391,8 +419,12 @@ def available_files(session_id: str, folder_name: str, filename: str, upload_sta
     State("session-id", "data"),
     State("folder-name", "data"),
     Input("signal-selection-accordion", "style"),
+    prevent_initial_call=True,
 )
 def update_signal_selection_accordion(session_id: str, folder_name: str, style_change: dict):
+
+    # log the selection accordion update
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Updated the signal selection accordion.")
 
     # check whether we have file
     file_exists = folder_name and os.path.isdir(os.path.join(DATA_FOLDER, session_id, folder_name))
@@ -449,6 +481,7 @@ def calculate_signal_number(session_id: str, folder_name: str, selections: list[
     Output({"type": "disable-btn", "index": dash.ALL}, "disabled"),
     Input("delete-file-button", "disabled"),
     State({"type": "disable-btn", "index": dash.ALL}, "disabled"),
+    prevent_initial_call=True,
 )
 def modify_sidebar_buttons(status: bool, button_ids: list):
     return [status]*len(button_ids)
@@ -502,6 +535,7 @@ def close_delete_modal(n_cancel, modal_is_open, modal_flag):
 @app.callback(
     Output("app-blur-target", "style"),
     Input("delete-modal-open", "data"),
+    prevent_initial_call=True,
 )
 def blur_background(is_open):
     if is_open:
@@ -591,7 +625,8 @@ def confirm_delete(n_click_confirm, n_submit, password_value, bytes_planned):
     )
 
 
-@app.callback(Input("print-cache-stats-button", "n_clicks"),)
+@app.callback(Input("print-cache-stats-button", "n_clicks"),
+              prevent_initial_call=True)
 def print_cache_stats(n_clicks):
     logger.info(ucache.cache_stats())
 
@@ -599,7 +634,7 @@ def print_cache_stats(n_clicks):
 def load_files(session_id: str, folder_name: str) ->  tuple[typing.Optional[dict[str: pd.DataFrame]], typing.Optional[pd.DataFrame], typing.Optional[tuple[int]], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame]]:
 
     # check whether we have a filename
-    logger.info(f"Session {session_id} requested files: [{folder_name if folder_name else "NO FOLDER"}]")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Session {session_id} requested files: [{folder_name if folder_name else "NO FOLDER"}]")
     if not folder_name: return None, None, None, None, None
 
     # load the files into memory
