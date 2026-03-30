@@ -1,4 +1,5 @@
 import itertools
+import typing
 
 
 def parse_kks_tag(tag: str) -> [str, str, str, str, str]:
@@ -61,12 +62,12 @@ def get_info_from_list(signal_list: list[str], unique: bool = True) -> dict[str:
     return {"block": blocks, "turbine": turbines, "component": components, "measurement": measurements, "type": sigtypes}
 
 
-def filter_components(signal_names: list[str],
-                      block_list: list[str] = None,
-                      turbine_list: list[str] = None,
-                      component_list: list[str] = None,
-                      measurement_list: list[str] = None,
-                      type_list: list[str] = None) -> list[bool]:
+def signal_name_mask(signal_names: list[str],
+                     block_list: typing.Iterable[str] = None,
+                     turbine_list: typing.Iterable[str] = None,
+                     component_list: typing.Iterable[str] = None,
+                     measurement_list: typing.Iterable[str] = None,
+                     type_list: typing.Iterable[str] = None) -> list[bool]:
 
     # transform into sets
     block_list = set(block_list) if block_list is not None else None
@@ -85,6 +86,26 @@ def filter_components(signal_names: list[str],
         for signal_name in signal_names
     ]
     return result_list
+
+
+def signal_name_filter(signal_names: list[str],
+                       block_list: typing.Iterable[str] = None,
+                       turbine_list: typing.Iterable[str] = None,
+                       component_list: typing.Iterable[str] = None,
+                       measurement_list: typing.Iterable[str] = None,
+                       type_list: typing.Iterable[str] = None) -> list[str]:
+
+    # get the filter mask
+    mask = signal_name_mask(signal_names,
+                            block_list=block_list,
+                            turbine_list=turbine_list,
+                            component_list=component_list,
+                            measurement_list=measurement_list,
+                            type_list=type_list)
+
+    # filter the actual name list
+    filtered_signal_names = list(itertools.compress(signal_names, mask))
+    return filtered_signal_names
 
 
 if __name__ == "__main__":
