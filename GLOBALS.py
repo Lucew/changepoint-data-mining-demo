@@ -71,5 +71,11 @@ if APPLICATION_LEVEL.value <= Level.INFO.value:
     __log = logging.getLogger('werkzeug')
     __log.setLevel(logging.ERROR)
 
+LOGGING_LEVEL = logging.DEBUG
+if APPLICATION_LEVEL == Level.PROD:
+    LOGGING_LEVEL = logging.info
+elif APPLICATION_LEVEL == Level.INFO:
+    LOGGING_LEVEL = logging.INFO
+
 # check whether we want to run the application in debug mode
 APP_DEBUG = APPLICATION_LEVEL.value >= Level.DEBUG.value
