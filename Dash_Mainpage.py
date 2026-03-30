@@ -15,6 +15,7 @@ import plotly
 from dash import html, dcc, Output, Input, State, ctx
 import dash_bootstrap_components as dbc
 import pandas as pd
+import flask
 
 import util.load_data as utl
 import util.cache_registry as ucache
@@ -33,7 +34,7 @@ page_info = {
 # get the logger
 # https://stackoverflow.com/q/3220284
 logger = logging.getLogger("frontend-logger")
-logger.setLevel(logging.DEBUG if APPLICATION_LEVEL == Level.DEBUG else logging.INFO)
+logger.setLevel(logging.DEBUG if APPLICATION_LEVEL == Level.DEBUG or APPLICATION_LEVEL == Level.DEMO else logging.INFO)
 ch = logging.StreamHandler()
 logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 ch.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
@@ -72,7 +73,7 @@ def get_first_subfolder(path: str) -> tuple[str, str] | tuple[None, None]:
 def init():
 
     # get a session id
-    session_id = __name__ if APPLICATION_LEVEL == Level.DEBUG else str(uuid.uuid4())
+    session_id = __name__ if APPLICATION_LEVEL == Level.DEBUG or APPLICATION_LEVEL == Level.DEMO else str(uuid.uuid4())
 
     # get the first subfolder
     subfolder, relative_path = get_first_subfolder(DATA_FOLDER)
@@ -263,6 +264,14 @@ app.layout = html.Div(
     id="overall-page-container",
 )
 
+@app.callback(
+    Output("overall-page-container", "id"),
+Input('session-id','data')
+)
+def pull_ip_address(session_id: str):
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] {session_id=} has IP: {flask.request.remote_addr}.")
+    return dash.no_update
+
 
 @app.callback(
     Output("main-page-refresh", "href", allow_duplicate=True),
@@ -288,12 +297,18 @@ def handle_zip_upload(contents: str, filename: str, session_id: str):
     # log the upload
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Attempt to upload a file.")
 
+    # check for demo mode
+    if APPLICATION_LEVEL == Level.DEMO:
+        logger.info(f"[{__name__}][{inspect.stack()[0][3]}] File upload {filename=} blocked due to {APPLICATION_LEVEL=}.")
+        raise dash.exceptions.PreventUpdate
+
     # check the obvious problems
     if not filename:
         return "", "", "", "/"
     if not filename.lower().endswith(".zip"):
         return "", "", "Wrong filetype", "/"
 
+    # try to decode the file
     try:
         # Decode uploaded content
         content_type, content_string = contents.split(',')
@@ -350,9 +365,17 @@ def handle_zip_upload(contents: str, filename: str, session_id: str):
 )
 def delete_own_files(n: int, session_id: str):
 
+    # log the deletion attempt
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Attempt to delete files from session {session_id}.")
+
     # nothing is clicked
     if n is None:
         return dash.exceptions.PreventUpdate
+
+    # block the deletion in case of demo
+    if APPLICATION_LEVEL == Level.DEMO:
+        logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Attempt to delete files blocked due to {APPLICATION_LEVEL=}.")
+        raise dash.exceptions.PreventUpdate
 
     # delete the files
     filename = os.path.join(DATA_FOLDER, session_id)
@@ -457,6 +480,10 @@ def update_signal_selection_accordion(session_id: str, folder_name: str, style_c
     prevent_initial_call=True,
 )
 def calculate_signal_number(session_id: str, folder_name: str, current_location: str, selections: list[list[str]]) -> [str, str]:
+
+    # check whether the list is empty
+    if not selections:
+        return "", dash.no_update
 
     # get the selected stuff
     component_selection = selections[2]
@@ -581,6 +608,9 @@ def confirm_delete(n_click_confirm, n_submit, password_value, bytes_planned):
     if not (n_click_confirm or n_submit):
         raise dash.exceptions.PreventUpdate
 
+    # log the trial
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Attempt to delete all files.")
+
     # get the size of the files
     planned_bytes = utl.format_bytes(int(bytes_planned or 0))
 
@@ -602,6 +632,11 @@ def confirm_delete(n_click_confirm, n_submit, password_value, bytes_planned):
             dash.no_update,
             dash.no_update,  # no redirect
         )
+
+    # block the deletion in case of demo
+    if APPLICATION_LEVEL == Level.DEMO:
+        logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Attempt to delete all files blocked due to {APPLICATION_LEVEL=}.")
+        raise dash.exceptions.PreventUpdate
 
     removed = utl.delete_all_files_in_root(DATA_FOLDER)
 
@@ -645,35 +680,7 @@ def load_files(session_id: str, folder_name: str) ->  tuple[typing.Optional[dict
     return scores, signals, window_sizes, anomaly_scores, distances
 
 
-def str2bool(v):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
-
-
 if __name__ == '__main__':
-
-    # parse the input arguments
-    parser = argparse.ArgumentParser(description='Dash Startup Script.')
-    parser.add_argument("--debug", '-d', nargs='?', type=str2bool, default=None, help='Enable debug mode of the app.')
-    parser.add_argument("--port", '-p', default=8050, help='Set the application port.')
-    __args = parser.parse_args()
-    __debug = __args.debug
-
-    # define the debug
-    if __debug is None:
-        __debug= APPLICATION_LEVEL == Level.DEBUG
-
-    # deactivate the flask logger if __debug is false
-    # https://community.plotly.com/t/suppress-dash-server-posts-to-console/8855/2
-    if not __debug:
-        log = logging.getLogger('werkzeug')
-        log.setLevel(logging.ERROR)
 
     # log some versions
     logger.info(f"Dash version: {dash.__version__}.")
@@ -684,5 +691,5 @@ if __name__ == '__main__':
         os.mkdir(DATA_FOLDER)
 
     # start the application
-    logger.info(f"Running Dash Main Page with level {APPLICATION_LEVEL=} and {__debug=}.")
-    app.run(debug=__debug, port=__args.port)
+    logger.info(f"Running Dash Main Page with level {APPLICATION_LEVEL=} and {APP_DEBUG=}.")
+    app.run(debug=APP_DEBUG, port=APP_PORT)

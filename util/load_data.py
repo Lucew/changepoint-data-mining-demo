@@ -15,7 +15,7 @@ from GLOBALS import *
 
 
 @ucache.lru_cache(CACHE_SIZE)
-def load_data(folder_path: str, mock_signals: bool = False, reduce_count: typing.Optional[int] = None) -> tuple[dict[str: pdtypes.DataFrameGroupBy], dict[str: pd.DataFrame], tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
+def load_data(folder_path: str, mock_signals: typing.Optional[bool] = None, reduce_count: typing.Optional[int] = None) -> tuple[dict[str: pdtypes.DataFrameGroupBy], dict[str: pd.DataFrame], tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
     start = time.perf_counter()
 
     # get the logger
@@ -24,6 +24,10 @@ def load_data(folder_path: str, mock_signals: bool = False, reduce_count: typing
     # check whether we wanted to reduce the count
     if reduce_count is None:
         reduce_count = MAX_SIGNALS
+
+    # check whether we want to simulate the signals
+    if mock_signals is None:
+        mock_signals = MOCK_SIGNALS
 
     # read the configuration
     config = json.load(open(os.path.join(folder_path, "params.json")))
