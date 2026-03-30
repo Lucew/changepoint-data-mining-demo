@@ -17,7 +17,7 @@ DEFAULT_UPLOAD_TEXT = "📤 Please upload your ZIP file"
 DEFAULT_UPLOAD_TEXT_SUCCESS = f"✅ Uploaded"
 
 # define a reduced sensor set
-MAX_SIGNALS = 500
+MAX_SIGNALS = 800
 
 # define the maximum number of signals for the heatmap
 MAX_HEATMAP_SIGNALS = 150
@@ -37,5 +37,4 @@ CACHE_SIZE = 1
 
 # check whether the data folder exists
 if not os.path.isdir(DATA_FOLDER):
-    pass
-    # raise ValueError(f"{DATA_FOLDER=} is not a valid directory.")
+    raise ValueError(f"{DATA_FOLDER=} is not a valid directory.")
