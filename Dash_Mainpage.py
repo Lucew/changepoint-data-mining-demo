@@ -450,10 +450,10 @@ def update_signal_selection_accordion(session_id: str, folder_name: str, style_c
 
 @app.callback(
     Output("main-page-signal-number", "children"),
-    Output("url", "href", allow_duplicate=True),
+    Output("main-page-refresh", "href", allow_duplicate=True),
     State("session-id", "data"),
     State("folder-name", "data"),
-    State("url", "pathname"),
+    State("main-page-refresh", "pathname"),
     Input({"type": "main-page-selection-dropdown", "index": dash.ALL}, "value"),
     prevent_initial_call=True,
 )
