@@ -133,14 +133,15 @@ side_bar_content = dbc.Container([
     html.Br(),
     html.Div(["Return to ", html.A("Home", href="/"), " before selecting."]),
     html.Div(["This prevents unnecessary page reloads."]),
+    html.Br(),
+    html.Div(id="main-page-signal-number", style={"textAlign": "center"}),  # to store the amount of signals leftover
+    html.Br(),
     dbc.Accordion(
         children=[],
         style={"display": "none"},
         start_collapsed=True,
         id="signal-selection-accordion",
     ),
-    html.Br(),
-    html.Div(id="main-page-signal-number", style={"textAlign": "center"}),  # to store the amount of signals leftover
     html.Br(),
     html.Br(),
     # Collapsible container (hidden initially)

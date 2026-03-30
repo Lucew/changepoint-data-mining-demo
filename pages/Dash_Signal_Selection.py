@@ -334,6 +334,12 @@ clientside_callback(
 def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str:str]] = None,
            selection_values = list[list[str]], **kwargs):
 
+    # get the start time
+    start = time.perf_counter()
+
+    # log the request
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Requested the signal selection page.")
+
     # check whether we have a folder
     if not folder_name:
         return html.H1("Please upload a file using the sidebar.")
@@ -598,4 +604,8 @@ def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str
     ],
         events=[delete_event], logging=True, id="scatter-delete-listener", style={"overflow": "clip"},
     )
+
+    # log the duration
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created the signal selection page in {time.perf_counter()-start:0.2f} s.")
+
     return layout_definition

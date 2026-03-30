@@ -290,6 +290,9 @@ def layout(session_id: str = "", folder_name: str="", selection_names: dict[str:
     # get the start time
     start = time.perf_counter()
 
+    # log the request
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Requested the heatmap analysis page.")
+
     # check whether we have a folder
     if not folder_name or len(selection_values) < 3:
         return html.H1("Please upload a file using the sidebar.")
