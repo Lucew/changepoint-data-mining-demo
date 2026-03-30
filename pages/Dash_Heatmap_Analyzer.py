@@ -67,7 +67,7 @@ def process_signals(session_id: str, folder_name: str, window_size: str = None, 
     # transform the index into a pandas timestamp
     score_df.index = pd.to_datetime(score_df.index)
 
-    logger.info(f"[{__name__}] Preprocessed data in {time.perf_counter() - start:0.2f} s. Parameters: {window_size=}, {signal_list=}, {normalization_window_size=}")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Preprocessed data in {time.perf_counter() - start:0.2f} s. Parameters: {window_size=}, {signal_list=}, {normalization_window_size=}")
     return score_df, window_size, window_sizes
 
 
