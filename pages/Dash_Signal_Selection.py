@@ -82,7 +82,7 @@ def select_signals_scatter(session_id: str, folder_name: str, graph_id, selected
 
     # exit early in case we selected too many signals
     if len(selected_signals) > MAX_HEATMAP_SELECT_SIGNALS:
-        fig = uheat.create_empty_figure_with_text(f"Too many signals to display the heatmap without lag (Current number: {len(selected_signals)} > {MAX_HEATMAP_SIGNALS=}). Please select less signals in the scatter plot.")
+        fig = uheat.create_empty_figure_with_text(f"Too many signals to display the heatmap without lag (Current number: {len(selected_signals)} > {MAX_HEATMAP_SELECT_SIGNALS=}). Please select less signals in the scatter plot.")
         return fig, False, False, True, True, "", [], children_patch, dict()
 
     # get the regression results
