@@ -49,7 +49,7 @@ app = dash.Dash(__name__, use_pages=PAGED, external_stylesheets=external_stylesh
                     "session_id": Input('session-id', "data"),
                     "folder_name": Input('folder-name', "data"),
                     "selection_names": State({"type": "main-page-selection-dropdown", "index": dash.ALL}, "id"),
-                    "selection_values": Input({"type": "main-page-selection-dropdown", "index": dash.ALL}, "value")
+                    "selection_values": State({"type": "main-page-selection-dropdown", "index": dash.ALL}, "value")
                 },
                 suppress_callback_exceptions=True,
                 )
@@ -266,7 +266,7 @@ app.layout = html.Div(
 
 
 @app.callback(
-    Output("main-page-refresh", "href"),
+    Output("main-page-refresh", "href", allow_duplicate=True),
     Input("main-page-return-home", "n_clicks"),
     prevent_initial_call=True)
 def get_home(n_clicks: int):
@@ -450,12 +450,14 @@ def update_signal_selection_accordion(session_id: str, folder_name: str, style_c
 
 @app.callback(
     Output("main-page-signal-number", "children"),
+    Output("url", "href", allow_duplicate=True),
     State("session-id", "data"),
     State("folder-name", "data"),
+    State("url", "pathname"),
     Input({"type": "main-page-selection-dropdown", "index": dash.ALL}, "value"),
     prevent_initial_call=True,
 )
-def calculate_signal_number(session_id: str, folder_name: str, selections: list[list[str]]) -> str:
+def calculate_signal_number(session_id: str, folder_name: str, current_location: str, selections: list[list[str]]) -> [str, str]:
 
     # get the selected stuff
     component_selection = selections[2]
@@ -464,17 +466,19 @@ def calculate_signal_number(session_id: str, folder_name: str, selections: list[
     # load the data into memory to get some information
     scores, _, window_sizes, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
-    # define the initially used signals
-    signal_ids = list(scores.keys())
+    location_update = "/"
+    if current_location != location_update:
+        logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Redirect to {location_update} from {current_location} due to signal subset selection.")
+    else:
+        location_update = dash.no_update
+
 
     # parse the signals and only keep the ones we want to select
-    signal_ids = [(name, *parsedtag)
-                  for name in signal_ids
-                  if len(parsedtag := ukks.parse_kks_tag(name))
-                  and (component_selection is None or parsedtag[2] in component_selection)
-                  and (measurement_selection is None or parsedtag[3] in measurement_selection)]
+    signal_number = sum(ukks.filter_components(scores.keys(), component_list=component_selection, measurement_list=measurement_selection))
 
-    return f"Currently {len(signal_ids)} signals are selected."
+    # get some logging information
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Selected a subset of signals {signal_number=}.")
+    return f"Currently {signal_number} signals are selected.", location_update
 
 
 @app.callback(
