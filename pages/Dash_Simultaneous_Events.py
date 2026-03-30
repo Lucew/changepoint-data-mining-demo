@@ -1,6 +1,7 @@
 # inspired by https://dash.plotly.com/interactive-graphing
 import logging
 import time
+import inspect
 
 from dash import Dash, dcc, html, Input, Output, callback, State, register_page
 import dash_bootstrap_components as dbc
@@ -46,7 +47,7 @@ styles = {
     }
 
 
-@ucache.lru_cache(maxsize=1)
+@ucache.lru_cache(maxsize=CACHE_SIZE)
 def get_score_information(session_id: str, folder_name: str):
     start = time.perf_counter()
 
@@ -55,7 +56,7 @@ def get_score_information(session_id: str, folder_name: str):
 
     # get the minimum, maximum, mean and std of each score
     value_dict = {'name': [], 'ws': [], 'min': [], 'max': [], 'mean': [], 'median': [], 'std':[]}
-    for name, grouped_df in tqdm(scores.items(), desc='Compute the Information'):
+    for name, grouped_df in tqdm(scores.items(), desc='Compute the scoring statistics'):
         aggregations = grouped_df['value'].agg(['min', 'max', 'mean', 'median', 'std'])
         for ws in grouped_df.groups.keys():
             value_dict['name'].append(name)
@@ -412,6 +413,12 @@ def display_score_onclick(session_id: str, folder_name: str, click_data, selecte
 
 def layout(session_id: str, folder_name: str, **kwargs):
 
+    # get the start time
+    start = time.perf_counter()
+
+    # log the request
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Requested the signal selection page.")
+
     # check whether we have a folder
     if not folder_name:
         return html.H1("Please upload a file using the sidebar.")
@@ -547,6 +554,10 @@ def layout(session_id: str, folder_name: str, **kwargs):
         )
     ],
     )
+
+    # log the duration
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created the signal selection page in {time.perf_counter() - start:0.2f} s.")
+
     return layout_definition
 
 if __name__ == '__main__':
