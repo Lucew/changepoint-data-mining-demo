@@ -73,7 +73,15 @@ def get_first_subfolder(path: str) -> tuple[str, str] | tuple[None, None]:
 def init():
 
     # get a session id
-    session_id = __name__ if APPLICATION_LEVEL == Level.DEBUG or APPLICATION_LEVEL == Level.DEMO else str(uuid.uuid4())
+    session_id = str(uuid.uuid4())
+    if APPLICATION_LEVEL == Level.DEBUG:
+        session_id = __name__
+    elif APPLICATION_LEVEL == Level.DEMO and os.name == 'nt':
+        session_id = __name__
+
+    # check whether we are running a demo (create symlink)
+    if APPLICATION_LEVEL == Level.DEMO and os.name != 'nt':
+        os.symlink(os.path.join(DATA_FOLDER, __name__), os.path.join(DATA_FOLDER, session_id))
 
     # get the first subfolder
     subfolder, relative_path = get_first_subfolder(DATA_FOLDER)

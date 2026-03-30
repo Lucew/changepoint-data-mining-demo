@@ -67,9 +67,8 @@ APP_PORT = __args.port
 
 # deactivate the flask logger if we have any low application level
 # https://community.plotly.com/t/suppress-dash-server-posts-to-console/8855/2
-if APPLICATION_LEVEL.value <= Level.INFO.value:
-    __log = logging.getLogger('werkzeug')
-    __log.setLevel(logging.ERROR)
+__log = logging.getLogger('werkzeug')
+__log.setLevel(logging.ERROR)
 
 LOGGING_LEVEL = logging.DEBUG
 if APPLICATION_LEVEL == Level.PROD:
