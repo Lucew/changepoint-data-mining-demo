@@ -4,7 +4,7 @@ pushd "%~dp0"
 
 rem -------- settings --------
 set "VENV_DIR=.venv"
-set "DEFAULT_ARGS=--mode debug --port 8050"
+set "DEFAULT_ARGS=--mode info --port 8050"
 set "DEFAULT_HOST=127.0.0.1"
 set "WAIT_BEFORE_BROWSER=3"
 rem --------------------------

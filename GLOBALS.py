@@ -6,6 +6,7 @@ import logging
 
 # make some enums
 class Level(enum.Enum):
+    PROD = -1
     INFO = 0
     DEMO = 1
     DEBUG = 2

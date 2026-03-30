@@ -34,12 +34,12 @@ page_info = {
 # get the logger
 # https://stackoverflow.com/q/3220284
 logger = logging.getLogger("frontend-logger")
-logger.setLevel(logging.DEBUG if APPLICATION_LEVEL == Level.DEBUG or APPLICATION_LEVEL == Level.DEMO else logging.INFO)
+logger.setLevel(LOGGING_LEVEL)
 ch = logging.StreamHandler()
 logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 ch.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
 logger.addHandler(ch)
-ch.setLevel(logging.DEBUG if APPLICATION_LEVEL == Level.DEBUG else logging.INFO)
+ch.setLevel(LOGGING_LEVEL)
 
 # Dash app setup
 external_stylesheets = [dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME]
