@@ -362,12 +362,12 @@ def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str
     _global_measurement_types = tuple(selection_values[3])
 
     # get the number of scores that are leftover after the selection
-    scores_valid = ukks.signal_name_mask(scores.keys(), component_list=_global_component_types, measurement_list=_global_measurement_types)
+    selected_signal_numer = sum(ukks.signal_name_mask(scores.keys(), component_list=_global_component_types, measurement_list=_global_measurement_types))
 
     # get the result ones before running the app, so we can set some default values
     # variable naming seems complex, but as these are global to the app, these complex names make sure we do not
     # accidentally reuse them
-    _global_default_perplexity = utsne.get_default_perplexity(sum(scores_valid))
+    _global_default_perplexity = utsne.get_default_perplexity(selected_signal_numer)
     _global_corr_thresh = utsne.get_default_corr_threshold()
 
     # get the explanation text from the file
@@ -514,7 +514,7 @@ def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str
                 ),
             ]),
             "Perplexity value",
-            dcc.Slider(1, distances.shape[0] // 2, 2,
+            dcc.Slider(1, selected_signal_numer // 2, 2,
                        value=_global_default_perplexity,
                        id='perplexity-slider',
                        ),
