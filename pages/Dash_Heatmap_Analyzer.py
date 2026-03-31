@@ -73,7 +73,7 @@ def process_signals(session_id: str, folder_name: str, window_size: str = None, 
 
 
 def create_heatmap(session_id: str, folder_name: str, window_size: int = None, signal_list: tuple[str] = None,
-                   normalization_window_size: int = None) -> [plotly.graph_objs.Figure, pd.Timestamp, pd.Timestamp]:
+                   normalization_window_size: int = None) -> [plotly.graph_objs.Figure, pd.Timestamp, pd.Timestamp, bool]:
 
     # create the heatmap figure
     if 0 < len(signal_list) <= MAX_HEATMAP_SIGNALS:
@@ -92,17 +92,20 @@ def create_heatmap(session_id: str, folder_name: str, window_size: int = None, s
         # get the start and endtime
         start_time = score_df.index.min()
         end_time = score_df.index.max()
+        hit_limit = False
     elif not signal_list:
         heatmap_figure = uheat.create_empty_figure_with_text(
             f"Please select signals using the sidebar. Current selection yields {len(signal_list)} signals.")
         start_time = pd.Timestamp(1)
         end_time = pd.Timestamp(0)
+        hit_limit = True
     else:
         heatmap_figure = uheat.create_empty_figure_with_text(
             f"Too many signals to display the heatmap without lag (Current number: {len(signal_list)} > {MAX_HEATMAP_SIGNALS=}). Please select signals in the sidebar.")
         start_time = pd.Timestamp(1)
         end_time = pd.Timestamp(0)
-    return heatmap_figure, start_time, end_time
+        hit_limit = True
+    return heatmap_figure, start_time, end_time, hit_limit
 
 
 @ucache.lru_cache(1)
@@ -273,7 +276,7 @@ def get_initial_figures(session_id: str, folder_name: str, target_window_size: i
         raise ValueError(f"{target_window_size=} must be in {window_sizes=}.")
 
     # create the heatmap figure
-    heatmap_figure, start_time, end_time = create_heatmap(session_id, folder_name, window_size=target_window_size, signal_list=tuple(signal_ids))
+    heatmap_figure, start_time, end_time, _ = create_heatmap(session_id, folder_name, window_size=target_window_size, signal_list=tuple(signal_ids))
 
     # log the creation of the heatmap figure
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created completely new heatmap figure in {time.perf_counter() - start:0.2f} seconds.")
@@ -501,10 +504,12 @@ def modify_heatmap_content(session_id: str, folder_name: str, all_signal_names: 
     if ctx.triggered_id == "heatmap-select-window-size" or ctx.triggered_id == "heatmap-normalization-input":
 
         # make a new heatmap
-        new_heatmap, _, _ = create_heatmap(session_id, folder_name, window_size=int(window_size), signal_list=tuple(all_signal_names), normalization_window_size=int(normalization_window_size) if normalization_window_size else None)
+        new_heatmap, _, _, hit_limit = create_heatmap(session_id, folder_name, window_size=int(window_size), signal_list=tuple(all_signal_names), normalization_window_size=int(normalization_window_size) if normalization_window_size else None)
 
-        # extract the image data and put it into the patch
-        heatmap_patch["data"][0]["z"] = new_heatmap["data"][0]["z"]
+        # check whether our returned figure hit the limit (has not content)
+        if not hit_limit:
+            # extract the image data and put it into the patch
+            heatmap_patch["data"][0]["z"] = new_heatmap["data"][0]["z"]
 
     elif ctx.triggered_id == 'heatmap-active-signal-store' or ctx.triggered_id == 'heatmap-scatter-graph':
 
