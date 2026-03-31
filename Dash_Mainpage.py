@@ -73,7 +73,7 @@ def get_first_subfolder(path: str) -> tuple[str, str] | tuple[None, None]:
 def init():
 
     # get a session id
-    session_id = str(uuid.uuid4())
+    session_id = f'uuid_{uuid.uuid4()}'
     if APPLICATION_LEVEL == Level.DEBUG:
         session_id = __name__
     elif APPLICATION_LEVEL == Level.DEMO and os.name == 'nt':
