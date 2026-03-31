@@ -87,8 +87,10 @@ def get_default_perplexity(sensor_number: int) -> int:
 # we have to do twice the cache size as this is used for two pages within our application
 @ucache.lru_cache(maxsize=CACHE_SIZE*2)
 def create_tsne(session_id: str, folder_name: str, perplexity: int = None, correlation_threshold: float = None, window_size: int = None) -> (pd.DataFrame, int, float):
-    # TODO: Recompute TSNE when different signals are selected
+
+    # get the logger and log the attempt
     logger = logging.getLogger("frontend-logger")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Requested TSNE ({perplexity=}, {correlation_threshold=}, {window_size=}).")
 
     # make the timing
     started = time.perf_counter()

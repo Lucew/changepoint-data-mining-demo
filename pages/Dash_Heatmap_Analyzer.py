@@ -265,10 +265,14 @@ def get_initial_figures(session_id: str, folder_name: str, target_window_size: i
         heatmap_figure = uheat.create_empty_figure_with_text(f"Too many signals to display the heatmap without lag (Current number: {len(signal_ids)} > {MAX_HEATMAP_SIGNALS=}). Please select signals in the sidebar.")
         start_time = pd.Timestamp(1)
         end_time = pd.Timestamp(0)
-    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created completely new heatmap and scatter figure in {time.perf_counter() - start:0.2f} seconds.")
+
+    # log the creation of the heatmap figure
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created completely new heatmap figure in {time.perf_counter() - start:0.2f} seconds.")
 
     # create the tsne figure
-    scatter_figure = uscat.create_scatter(session_id, folder_name, correlation_threshold=-2.0, window_size=target_window_size, selected_signals=tuple(signal_ids))
+    start = time.perf_counter()
+    scatter_figure = uscat.create_scatter(session_id, folder_name, correlation_threshold=-2.0, window_size=target_window_size, selected_signals=signal_ids)
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created completely new scatter figure in {time.perf_counter() - start:0.2f} seconds.")
     return signal_ids, target_window_size, window_sizes, heatmap_figure, start_time, end_time, scatter_figure
 
 
@@ -442,11 +446,11 @@ def redraw_scatter_graph(session_id: str, folder_name: str, window_size: str, si
     event_type, selected_signals = unpack_signal_selection_store(signal_store)
 
     # write to logger
-    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] We adapt the scatter plot ({event_type=}).")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] We adapt the scatter plot ({event_type=}, {window_size=}, {len(signal_store)=}).")
 
     # do not redraw the scatter if we just reordered
     new_figure = dash.no_update
-    if event_type == 'deleteEvent':
+    if event_type == 'deleteEvent' or ctx.triggered_id == "heatmap-select-window-size":
         # create the new figure
         new_figure = uscat.create_scatter(session_id, folder_name, correlation_threshold=-2.0,
                                           window_size=int(window_size),
