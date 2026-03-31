@@ -84,16 +84,11 @@ def init():
         os.symlink(os.path.join(DATA_FOLDER, __name__), os.path.join(DATA_FOLDER, session_id))
 
     # get the first subfolder
-    subfolder, relative_path = get_first_subfolder(DATA_FOLDER)
-    folder_name = ""
-    if subfolder is not None:
-        # set the session id to this folder
-        session_id = relative_path
+    _, folder_name = get_first_subfolder(os.path.join(DATA_FOLDER, session_id))
 
-        # check for the content of the already existing data
-        subsubfolder, relative_path = get_first_subfolder(subfolder)
-        if subsubfolder is not None:
-            folder_name = relative_path
+    # check whether we found a subfolder
+    if folder_name is None:
+        folder_name = "not-available"
 
     file_name = "already-there"
     upload_status = "already-there"
@@ -277,7 +272,7 @@ app.layout = html.Div(
 Input('session-id','data')
 )
 def pull_ip_address(session_id: str):
-    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] {session_id=} has IP: {flask.request.remote_addr}.")
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] New {session_id=} has IP: {flask.request.remote_addr}.")
     return dash.no_update
 
 
