@@ -294,7 +294,7 @@ def modify_shapes(session_id: str, folder_name: str, signal_names: list[str], fi
     prevent_initial_call=True,
 )
 def add_click_line(click_data, figure_ids: list[str], figure_shapes: dict[str: list], heatmap_id: str):
-    return uheat.draw_lines_on_click(click_data, figure_ids, figure_shapes, line_keywords={stringify_id(heatmap_id): {'color': 'white', 'width': 3}})
+    return uheat.draw_lines_on_click(click_data, figure_ids, figure_shapes, line_keywords={stringify_id(heatmap_id): {'color': 'white', 'width': 3, 'layer': 'above'}})
 
 
 """@callback(

@@ -54,7 +54,7 @@ def make_shape_store_entry(xmin: str, xmax: str):
     return {'range': (xmin, xmax), 'shapes': []}
 
 
-def make_vline(x_position: [float | pd.Timestamp], width: float = 2, color: str = "black", dash_type: str = "solid"):
+def make_vline(x_position: [float | pd.Timestamp], width: float = 2, color: str = "black", dash_type: str = "solid", layer: str = "below"):
 
     line = {
         "type": "line",
@@ -64,6 +64,7 @@ def make_vline(x_position: [float | pd.Timestamp], width: float = 2, color: str 
         "x1": x_position,
         "y0": 0,
         "y1": 1,
+        "layer": layer,
         "line": {
             "color": color,
             "width": width,
