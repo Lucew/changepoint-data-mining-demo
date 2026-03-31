@@ -436,7 +436,8 @@ def reorder_columns(event_data: dict, n_events: int):
     Input("heatmap-select-window-size", "value"),
     Input('heatmap-active-signal-store', 'data'),
     running=[
-        (Output({'type': 'heatmap-data-loader', 'index': 'signal-selection'}, "display"), "show", "auto")
+        (Output({'type': 'heatmap-data-loader', 'index': 'signal-selection'}, "display"), "show", "auto"),
+        (Output({'type': 'heatmap-data-loader', 'index': 'heatmap-graph'}, "display"), "show", "auto")
     ], # this deactivates the figure while running our function
     prevent_initial_call=True,
 )
