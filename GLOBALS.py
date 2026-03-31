@@ -61,8 +61,8 @@ APPLICATION_LEVEL = Level[__application_level_string]
 if APPLICATION_LEVEL == Level.DEMO and os.name == 'nt':
     warnings.warn(f"{APPLICATION_LEVEL=} does not work as well with windows.")
 
-# check whether the data folder exists
-DATA_FOLDER = __args.folder
+# make absolute path and check whether the data folder exists
+DATA_FOLDER = os.path.abspath(__args.folder)
 if not os.path.isdir(DATA_FOLDER):
     raise argparse.ArgumentError(__file_arg, f"{DATA_FOLDER=} is not a valid directory.")
 

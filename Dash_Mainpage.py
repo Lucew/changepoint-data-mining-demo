@@ -81,7 +81,7 @@ def init():
 
     # check whether we are running a demo (create symlink)
     if APPLICATION_LEVEL == Level.DEMO and os.name != 'nt':
-        os.symlink(os.path.join(os.getcwd(), DATA_FOLDER, __name__), os.path.join(os.getcwd(), DATA_FOLDER, session_id))
+        os.symlink(os.path.join(DATA_FOLDER, __name__), os.path.join(DATA_FOLDER, session_id))
 
     # get the first subfolder
     _, folder_name = get_first_subfolder(os.path.join(DATA_FOLDER, session_id))
