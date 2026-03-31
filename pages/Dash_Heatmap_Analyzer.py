@@ -334,91 +334,98 @@ def layout(session_id: str = "", folder_name: str="", selection_names: dict[str:
         ],
             style=usty.div_styles['div'],
         ),
-        html.Div(children=[
-            dbc.Row(children=[
-                dbc.Col(children=[
-                    html.H3("Signal Scatter Plot"),
-                    dcc.Loading(children=[
-                        dbc.Accordion(children=[
-                            dbc.AccordionItem(children=[
-                                dcc.Graph(
-                                    id='heatmap-scatter-graph',
-                                    figure=scatter_figure,
-                                    style={'width': f'40vw', 'height': '25vw', 'marginLeft': 'auto', 'marginRight': 'auto'},
+        dcc.Loading(children=[
+            html.Div(children=[
+                dbc.Row(children=[
+                    dbc.Col(children=[
+                        html.H3("Signal Scatter Plot"),
+                        dcc.Loading(children=[
+                            dbc.Accordion(children=[
+                                dbc.AccordionItem(children=[
+                                    dcc.Graph(
+                                        id='heatmap-scatter-graph',
+                                        figure=scatter_figure,
+                                        style={'width': f'40vw', 'height': '25vw', 'marginLeft': 'auto', 'marginRight': 'auto'},
+                                    ),
+                                ],
+                                    title="Scatter Plot",
                                 ),
                             ],
-                                title="Scatter Plot",
+                                start_collapsed=False,
                             ),
                         ],
-                            start_collapsed=False,
+                            type="circle",
+                            overlay_style={"visibility": "visible", "filter": "blur(2px)"},
+                            id={'type': 'heatmap-data-loader', 'index': 'signal-scatter-plot'},
                         ),
-                    ],
-                        type="circle",
-                        overlay_style={"visibility": "visible", "filter": "blur(2px)"},
-                        id={'type': 'heatmap-data-loader', 'index': 'signal-scatter-plot'},
-                    ),
-                ]),
-                dbc.Col(children=[
-                    html.H3("Signal Selection"),
-                    dcc.Loading(children=[
-                        make_selection_accordion(signal_ids)
-                    ],
-                        type="circle",
-                        overlay_style={"visibility": "visible", "filter": "blur(2px)"},
-                        id={'type': 'heatmap-data-loader', 'index': 'signal-selection'},
-                    ),
-                ]),
-            ]),
-        ],
-            style=usty.div_styles['div'],
-            id='heatmap-column-container'
-        ),
-        EventListener(children=[
-            html.Div(children=[
-                "Shortcuts: [DEL] deletes the last drawn rectangle. [0] sets view to anomaly_heatmap. Any other number scrolls to "
-                "the regarding selection, e.g. [1].",
-                html.Div(children=[
-                    dcc.Loading(children=[
-                        dcc.Graph(
-                            id=heatmap_id,
-                            figure=heatmap_figure,
+                    ]),
+                    dbc.Col(children=[
+                        html.H3("Signal Selection"),
+                        dcc.Loading(children=[
+                            make_selection_accordion(signal_ids)
+                        ],
+                            type="circle",
+                            overlay_style={"visibility": "visible", "filter": "blur(2px)"},
+                            id={'type': 'heatmap-data-loader', 'index': 'signal-selection'},
                         ),
-                    ],
-                        type="circle",
-                        overlay_style={"visibility": "visible", "filter": "blur(2px)"},
-                        id={'type': 'heatmap-data-loader', 'index': 'heatmap-graph'},
-                    ),
+                    ]),
                 ]),
-                html.Button("Delete All", id="heatmap-delete-button-all", className="button-4"),
-                html.Button("Delete Active", id="heatmap-delete-button-active", className="button-4"),
             ],
-                style=usty.div_styles['div'] | usty.div_styles['stickydiv'],
-                id='heatmap-container',
+                style=usty.div_styles['div'],
+                id='heatmap-column-container'
+            ),
+            EventListener(children=[
+                html.Div(children=[
+                    "Shortcuts: [DEL] deletes the last drawn rectangle. [0] sets view to anomaly_heatmap. Any other number scrolls to "
+                    "the regarding selection, e.g. [1].",
+                    html.Div(children=[
+                        dcc.Loading(children=[
+                            dcc.Graph(
+                                id=heatmap_id,
+                                figure=heatmap_figure,
+                            ),
+                        ],
+                            type="circle",
+                            overlay_style={"visibility": "visible", "filter": "blur(2px)"},
+                            id={'type': 'heatmap-data-loader', 'index': 'heatmap-graph'},
+                        ),
+                    ]),
+                    html.Button("Delete All", id="heatmap-delete-button-all", className="button-4"),
+                    html.Button("Delete Active", id="heatmap-delete-button-active", className="button-4"),
+                ],
+                    style=usty.div_styles['div'] | usty.div_styles['stickydiv'],
+                    id='heatmap-container',
+                ),
+            ],
+                events=[delete_event], logging=True, id="heatmap-delete-listener",
+            ),
+            html.Div(children=[
+            ],
+                id="heatmap-raw-signal-graph-container",
+            ),
+            html.Div(
+                children=[],
+                style=usty.div_styles['div'],
+                id='heatmap-text-container',
+                hidden=True,
+            ),
+            html.Div(
+                children=[],
+                style=usty.div_styles['div'],
+                id='heatmap-signal-include-container',
+                hidden=True,
+            ),
+            html.Div(
+                children=[],
+                style=usty.div_styles['div'],
+                id='heatmap-signal-ignore-container',
+                hidden=True,
             ),
         ],
-            events=[delete_event], logging=True, id="heatmap-delete-listener",
-        ),
-        html.Div(children=[
-        ],
-            id="heatmap-raw-signal-graph-container",
-        ),
-        html.Div(
-            children=[],
-            style=usty.div_styles['div'],
-            id='heatmap-text-container',
-            hidden=True,
-        ),
-        html.Div(
-            children=[],
-            style=usty.div_styles['div'],
-            id='heatmap-signal-include-container',
-            hidden=True,
-        ),
-        html.Div(
-            children=[],
-            style=usty.div_styles['div'],
-            id='heatmap-signal-ignore-container',
-            hidden=True,
+            type="circle",
+            overlay_style={"visibility": "visible", "filter": "blur(2px)"},
+            id="heatmap-all-graph-loading",
+            target_components={stringify_id(heatmap_id): "figure", 'heatmap-scatter-graph': 'figure'}
         ),
     ],
     )
@@ -479,10 +486,6 @@ def redraw_scatter_graph(session_id: str, folder_name: str, window_size: str, si
     Input("heatmap-normalization-input", "value"),
     Input('heatmap-active-signal-store', 'data'),
     Input('heatmap-scatter-graph', 'selectedData'),
-    running=[
-        (Output({'type': 'heatmap-data-loader', 'index': 'signal-scatter-plot'}, "display"), "show", "auto"),
-        (Output({'type': 'heatmap-data-loader', 'index': 'signal-selection'}, "display"), "show", "auto")
-    ], # this deactivates the figure while running our function
     prevent_initial_call=True,
 )
 def modify_heatmap_content(session_id: str, folder_name: str, all_signal_names: list[str], window_size: str, normalization_window_size: str, signal_store: dict, scatter_select: dict):
