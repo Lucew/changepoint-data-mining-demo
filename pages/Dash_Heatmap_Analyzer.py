@@ -72,19 +72,37 @@ def process_signals(session_id: str, folder_name: str, window_size: str = None, 
     return score_df, window_size, window_sizes
 
 
-def create_heatmap(session_id: str, folder_name: str, window_size: int = None, signal_list: tuple[str,...] = None,
+def create_heatmap(session_id: str, folder_name: str, window_size: int = None, signal_list: tuple[str] = None,
                    normalization_window_size: int = None) -> [plotly.graph_objs.Figure, pd.Timestamp, pd.Timestamp]:
-    # read the signals
-    score_df, _, _ = process_signals(session_id=session_id, folder_name=folder_name, window_size=window_size, signal_list=signal_list, normalization_window_size=normalization_window_size)
 
-    # make the figure
-    fig = uheat.draw_heatmap(score_df)
-    fig.update_yaxes(
-        categoryorder="array",
-        categoryarray=list(score_df.columns),
-        constrain='range',
-    )
-    return fig, score_df.index.min(), score_df.index.max()
+    # create the heatmap figure
+    if 0 < len(signal_list) <= MAX_HEATMAP_SIGNALS:
+        # read the signals
+        score_df, _, _ = process_signals(session_id=session_id, folder_name=folder_name, window_size=window_size,
+                                         signal_list=signal_list, normalization_window_size=normalization_window_size)
+
+        # make the figure
+        heatmap_figure = uheat.draw_heatmap(score_df)
+        heatmap_figure.update_yaxes(
+            categoryorder="array",
+            categoryarray=list(score_df.columns),
+            constrain='range',
+        )
+
+        # get the start and endtime
+        start_time = score_df.index.min()
+        end_time = score_df.index.max()
+    elif not signal_list:
+        heatmap_figure = uheat.create_empty_figure_with_text(
+            f"Please select signals using the sidebar. Current selection yields {len(signal_list)} signals.")
+        start_time = pd.Timestamp(1)
+        end_time = pd.Timestamp(0)
+    else:
+        heatmap_figure = uheat.create_empty_figure_with_text(
+            f"Too many signals to display the heatmap without lag (Current number: {len(signal_list)} > {MAX_HEATMAP_SIGNALS=}). Please select signals in the sidebar.")
+        start_time = pd.Timestamp(1)
+        end_time = pd.Timestamp(0)
+    return heatmap_figure, start_time, end_time
 
 
 @ucache.lru_cache(1)
@@ -255,16 +273,7 @@ def get_initial_figures(session_id: str, folder_name: str, target_window_size: i
         raise ValueError(f"{target_window_size=} must be in {window_sizes=}.")
 
     # create the heatmap figure
-    if 0 < len(signal_ids) <= MAX_HEATMAP_SIGNALS:
-        heatmap_figure, start_time, end_time = create_heatmap(session_id=session_id, folder_name=folder_name, window_size=target_window_size, signal_list=tuple(signal_ids))
-    elif not signal_ids:
-        heatmap_figure = uheat.create_empty_figure_with_text(f"Please select signals using the sidebar. Current selection yields {len(signal_ids)} signals.")
-        start_time = pd.Timestamp(1)
-        end_time = pd.Timestamp(0)
-    else:
-        heatmap_figure = uheat.create_empty_figure_with_text(f"Too many signals to display the heatmap without lag (Current number: {len(signal_ids)} > {MAX_HEATMAP_SIGNALS=}). Please select signals in the sidebar.")
-        start_time = pd.Timestamp(1)
-        end_time = pd.Timestamp(0)
+    heatmap_figure, start_time, end_time = create_heatmap(session_id, folder_name, window_size=target_window_size, signal_list=tuple(signal_ids))
 
     # log the creation of the heatmap figure
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created completely new heatmap figure in {time.perf_counter() - start:0.2f} seconds.")
