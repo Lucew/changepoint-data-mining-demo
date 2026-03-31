@@ -695,4 +695,4 @@ if __name__ == '__main__':
 
     # start the application
     logger.info(f"Running Dash Main Page with level {APPLICATION_LEVEL=} and {APP_DEBUG=}.")
-    app.run(debug=APP_DEBUG, port=APP_PORT)
+    app.run(host= "0.0.0.0" if APPLICATION_LEVEL == Level.DEMO else None, debug=APP_DEBUG, port=APP_PORT)
