@@ -94,182 +94,193 @@ def init():
     upload_status = "already-there"
     return session_id, folder_name, file_name, upload_status
 
-# initialize the store variables
-__session_id, __folder_name, __file_name, __upload_status = init()
 
-# App layout
-side_bar_content = dbc.Container([
-    html.Div(html.H1("Changepoint", className="my-4 text-center")),
+# create a function to make the layout for every call
+def app_serve_layout():
+    """
+    With this function, we generate the uuid every time our app is called dynamically.
 
-    # give the session an id and save the files
-    dcc.Store(data=__session_id, id='session-id', storage_type='session'),
-    dcc.Store(data=__file_name, id='file-name', storage_type='session'),
-    dcc.Store(data=__folder_name, id='folder-name', storage_type='session'),
-    dcc.Store(data=__upload_status, id='upload-status', storage_type='session'),
+    :return: a html.Div that contains the page content
+    """
+    # initialize the store variables
+    __session_id, __folder_name, __file_name, __upload_status = init()
 
-    # Upload component
-    dcc.Loading(
+    # App layout
+    side_bar_content = dbc.Container([
+        html.Div(html.H1("Changepoint", className="my-4 text-center")),
+
+        # give the session an id and save the files
+        dcc.Store(data=__session_id, id='session-id', storage_type='session'),
+        dcc.Store(data=__file_name, id='file-name', storage_type='session'),
+        dcc.Store(data=__folder_name, id='folder-name', storage_type='session'),
+        dcc.Store(data=__upload_status, id='upload-status', storage_type='session'),
+
+        # Upload component
+        dcc.Loading(
+            html.Div([
+                dcc.Upload(
+                    id='upload-data',
+                    children=html.Div([
+                        html.P(children=[DEFAULT_UPLOAD_TEXT], id='upload-text', style={"fontSize": "20px", "marginBottom": "5px", "overflow": "flex"}),
+                        html.Small("Drag and drop or click to browse", style={"color": "#6c757d"})
+                    ]),
+                    className="upload-box",
+                    multiple=False,
+                ),
+            ], style={"marginBottom": "15px"}, className="upload-box-div"),
+            id='upload-load-spinner', className="upload-load-spinner"),
+
+        # Display uploaded filename
+        dbc.Button("Delete File.", id="delete-file-button", disabled=True, style={"margin": "1px"}),
+        dbc.Button("Delete ALL Files.", id="delete-all-file-button", style={"margin": "1px"}),
+        dbc.Button("Stats.", id="print-cache-stats-button", style={"margin": "1px"}),
+
+        # Responsive grid of page buttons
+        html.Div(
+            id="page-button-grid",
+            children=[
+                dbc.Button(title, href=f"/{title.lower()}", style={"margin": "1px"}, id={"type": "disable-btn", "index": title}, disabled=True)
+                for title, desc in page_info.items()
+            ],
+        ),
+        html.Br(),
         html.Div([
-            dcc.Upload(
-                id='upload-data',
-                children=html.Div([
-                    html.P(children=[DEFAULT_UPLOAD_TEXT], id='upload-text', style={"fontSize": "20px", "marginBottom": "5px", "overflow": "flex"}),
-                    html.Small("Drag and drop or click to browse", style={"color": "#6c757d"})
-                ]),
-                className="upload-box",
-                multiple=False,
+            "Return to ",
+            html.A("Home", id="main-page-return-home",
+                   style={
+                       "color": "#0d6efd",
+                       "textDecoration": "underline",
+                       "cursor": "pointer"
+                   }),
+            " before selecting signals."
+        ]),
+        html.Div(["This prevents unnecessary page reloads."]),
+        html.Br(),
+        html.Div(id="main-page-signal-number", style={"textAlign": "center"}),  # to store the amount of signals leftover
+        html.Br(),
+        dbc.Accordion(
+            children=[],
+            style={"display": "none"},
+            start_collapsed=True,
+            id="signal-selection-accordion",
+        ),
+        html.Br(),
+        html.Br(),
+        # Collapsible container (hidden initially)
+        dbc.Accordion(
+            children=[
+                dbc.AccordionItem(title=f"{title} Description", children=desc, style={"marginTop": "0px"})
+                for i, (title, desc) in enumerate(page_info.items(), start=1)
+            ],
+            style={"display": "none"},
+            start_collapsed=True,
+            id="page-link-container",
+        ),
+
+    ],
+        style={"maxWidth": "25rem"}, fluid=True
+    )
+
+    complete_container = html.Div(
+        [
+            dcc.Location(id="url"),
+            dcc.Location(id="main-page-refresh", refresh="callback-nav"),
+
+            # store flags + messages
+            dcc.Store(id="delete-modal-open", data=False, storage_type="session"),
+            dcc.Store(id="delete-notice", data="", storage_type="session"),
+            dcc.Store(id="delete-size-bytes", data=0, storage_type="memory"),
+
+            # everything inside here will blur when modal opens
+            html.Div(
+                id="app-blur-target",
+                children=[
+                    html.Div(
+                        children=[
+                            dcc.Loading(html.Div(html.H1(id="sidebar-symbol")),),
+                            html.Div(side_bar_content, className='sidebar-content-div')
+                        ],
+                        className="sidebar",
+                    ),
+                    dcc.Loading(
+                        dash.page_container,
+                        className="page-load-spinner",
+                        target_components={"_pages_content": "children"},
+                        overlay_style={"visibility":"visible", "filter": "blur(2px)"},
+                        id="page-load-spinner",
+                    ),
+                ],
             ),
-        ], style={"marginBottom": "15px"}, className="upload-box-div"),
-        id='upload-load-spinner', className="upload-load-spinner"),
 
-    # Display uploaded filename
-    dbc.Button("Delete File.", id="delete-file-button", disabled=True, style={"margin": "1px"}),
-    dbc.Button("Delete ALL Files.", id="delete-all-file-button", style={"margin": "1px"}),
-    dbc.Button("Stats.", id="print-cache-stats-button", style={"margin": "1px"}),
+            # Fullscreen password modal
+            # --- Password Modal (compact center) ---
+            dbc.Modal(
+                id="delete-modal",
+                is_open=False,
+                backdrop=True,  # click outside won't close it automatically; we close by callbacks
+                keyboard=True,  # Esc closes via our 'x' handler if you want to wire it too
+                centered=True,
+                size="md",  # <— small/medium dialog, not fullscreen
+                children=[
+                    dbc.ModalHeader(
+                        children=[
+                            dbc.ModalTitle("Confirm full deletion"),
+                        ],
+                        close_button=True,  # close button
+                    ),
+                    dbc.ModalBody(
+                        [
+                            html.P(
+                                "Enter the deletion password to remove ALL files in ./tmp-data-folder.",
+                                className="mb-3"
+                            ),
+                            html.Div(id="delete-size-line", className="text-muted small mb-2"),
+                            dcc.Input(
+                                id="delete-password-input",
+                                type="password",
+                                placeholder="Password",
+                                autoComplete="off",
+                                className="form-control mb-2",  # Bootstrap styling via className
+                                n_submit=0,  # so we can capture Enter
+                            ),
+                            html.Div(
+                                id="delete-inline-feedback",
+                                className="text-danger small",
+                                style={"minHeight": "1.2rem"}
+                            ),
+                        ]
+                    ),
+                    dbc.ModalFooter(
+                        [
+                            dbc.Button("Cancel", id="delete-cancel-btn", className="me-2", outline=True),
+                            dbc.Button("Delete everything", id="delete-confirm-btn", color="danger"),
+                        ]
+                    ),
+                ],
+            ),
 
-    # Responsive grid of page buttons
-    html.Div(
-        id="page-button-grid",
-        children=[
-            dbc.Button(title, href=f"/{title.lower()}", style={"margin": "1px"}, id={"type": "disable-btn", "index": title}, disabled=True)
-            for title, desc in page_info.items()
+            # Toast notifications
+            dbc.Toast(
+                id="delete-toast",
+                header="",
+                is_open=False,
+                dismissable=True,
+                duration=4000,
+                icon="primary",
+                style={"position": "fixed", "top": 20, "right": 20, "zIndex": 1060},
+                children=""
+            ),
         ],
-    ),
-    html.Br(),
-    html.Div([
-        "Return to ",
-        html.A("Home", id="main-page-return-home",
-               style={
-                   "color": "#0d6efd",
-                   "textDecoration": "underline",
-                   "cursor": "pointer"
-               }),
-        " before selecting signals."
-    ]),
-    html.Div(["This prevents unnecessary page reloads."]),
-    html.Br(),
-    html.Div(id="main-page-signal-number", style={"textAlign": "center"}),  # to store the amount of signals leftover
-    html.Br(),
-    dbc.Accordion(
-        children=[],
-        style={"display": "none"},
-        start_collapsed=True,
-        id="signal-selection-accordion",
-    ),
-    html.Br(),
-    html.Br(),
-    # Collapsible container (hidden initially)
-    dbc.Accordion(
-        children=[
-            dbc.AccordionItem(title=f"{title} Description", children=desc, style={"marginTop": "0px"})
-            for i, (title, desc) in enumerate(page_info.items(), start=1)
-        ],
-        style={"display": "none"},
-        start_collapsed=True,
-        id="page-link-container",
-    ),
-
-],
-    style={"maxWidth": "25rem"}, fluid=True
-)
+        id="overall-page-container",
+    )
+    return complete_container
 
 # set the final layout
-app.layout = html.Div(
-    [
-        dcc.Location(id="url"),
-        dcc.Location(id="main-page-refresh", refresh="callback-nav"),
-
-        # store flags + messages
-        dcc.Store(id="delete-modal-open", data=False, storage_type="session"),
-        dcc.Store(id="delete-notice", data="", storage_type="session"),
-        dcc.Store(id="delete-size-bytes", data=0, storage_type="memory"),
-
-        # everything inside here will blur when modal opens
-        html.Div(
-            id="app-blur-target",
-            children=[
-                html.Div(
-                    children=[
-                        dcc.Loading(html.Div(html.H1(id="sidebar-symbol")),),
-                        html.Div(side_bar_content, className='sidebar-content-div')
-                    ],
-                    className="sidebar",
-                ),
-                dcc.Loading(
-                    dash.page_container,
-                    className="page-load-spinner",
-                    target_components={"_pages_content": "children"},
-                    overlay_style={"visibility":"visible", "filter": "blur(2px)"},
-                    id="page-load-spinner",
-                ),
-            ],
-        ),
-
-        # Fullscreen password modal
-        # --- Password Modal (compact center) ---
-        dbc.Modal(
-            id="delete-modal",
-            is_open=False,
-            backdrop=True,  # click outside won't close it automatically; we close by callbacks
-            keyboard=True,  # Esc closes via our 'x' handler if you want to wire it too
-            centered=True,
-            size="md",  # <— small/medium dialog, not fullscreen
-            children=[
-                dbc.ModalHeader(
-                    children=[
-                        dbc.ModalTitle("Confirm full deletion"),
-                    ],
-                    close_button=True,  # close button
-                ),
-                dbc.ModalBody(
-                    [
-                        html.P(
-                            "Enter the deletion password to remove ALL files in ./tmp-data-folder.",
-                            className="mb-3"
-                        ),
-                        html.Div(id="delete-size-line", className="text-muted small mb-2"),
-                        dcc.Input(
-                            id="delete-password-input",
-                            type="password",
-                            placeholder="Password",
-                            autoComplete="off",
-                            className="form-control mb-2",  # Bootstrap styling via className
-                            n_submit=0,  # so we can capture Enter
-                        ),
-                        html.Div(
-                            id="delete-inline-feedback",
-                            className="text-danger small",
-                            style={"minHeight": "1.2rem"}
-                        ),
-                    ]
-                ),
-                dbc.ModalFooter(
-                    [
-                        dbc.Button("Cancel", id="delete-cancel-btn", className="me-2", outline=True),
-                        dbc.Button("Delete everything", id="delete-confirm-btn", color="danger"),
-                    ]
-                ),
-            ],
-        ),
-
-        # Toast notifications
-        dbc.Toast(
-            id="delete-toast",
-            header="",
-            is_open=False,
-            dismissable=True,
-            duration=4000,
-            icon="primary",
-            style={"position": "fixed", "top": 20, "right": 20, "zIndex": 1060},
-            children=""
-        ),
-    ],
-    id="overall-page-container",
-)
+app.layout = app_serve_layout
 
 @app.callback(
     Output("overall-page-container", "id"),
-Input('session-id','data')
+    Input('session-id','data')
 )
 def pull_ip_address(session_id: str):
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] New {session_id=} has IP: {flask.request.remote_addr}.")
