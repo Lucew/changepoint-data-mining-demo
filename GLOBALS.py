@@ -47,8 +47,14 @@ __parser = argparse.ArgumentParser(description='Dash Startup Script.')
 __mode_arg = __parser.add_argument('--mode', '-m', default='debug', help=f'Set the application mode. Possible values: {list(ele.name for ele in Level)}')
 __port_arg = __parser.add_argument('--port', '-p', default=8050, type=int, help='Set the application port.')
 __file_arg = __parser.add_argument('--folder', '-f', default=r'C:\Users\lucas\Data\CP_Anomaly\output_api', help='Set the application folder.')
+__parser.add_argument('--maxnum', '-mn', default=MAX_SIGNALS, type=int, help='The maximum number of signals that are loaded.')
+__parser.add_argument('--mocksig', '-ms', default=MOCK_SIGNALS, type=bool, help='Whether to load signals or mock them from the scores.')
 __args = __parser.parse_args()
 
+
+# get the new defaults for some globals
+MAX_SIGNALS = __args.maxnum
+MOCK_SIGNALS = __args.mocksig
 
 # get the application level
 __application_level_list = list(ele.name for ele in Level)
