@@ -41,6 +41,7 @@ class Level(enum.Enum):
     INFO = 0
     DEMO = 1
     DEBUG = 2
+    STANDALONE = 3
 
 # parse the input arguments
 __parser = argparse.ArgumentParser(description='Dash Startup Script.')
@@ -83,7 +84,7 @@ __log.setLevel(logging.ERROR)
 
 LOGGING_LEVEL = logging.DEBUG
 if APPLICATION_LEVEL == Level.PROD:
-    LOGGING_LEVEL = logging.info
+    LOGGING_LEVEL = logging.INFO
 elif APPLICATION_LEVEL == Level.INFO:
     LOGGING_LEVEL = logging.INFO
 

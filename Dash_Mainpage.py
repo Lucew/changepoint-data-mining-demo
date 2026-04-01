@@ -77,7 +77,7 @@ def init():
 
     # get a session id
     session_id = f'uuid_{uuid.uuid4()}'
-    if APPLICATION_LEVEL == Level.DEBUG:
+    if APPLICATION_LEVEL == Level.DEBUG or APPLICATION_LEVEL == Level.STANDALONE:
         session_id = __name__
     elif APPLICATION_LEVEL == Level.DEMO and os.name == 'nt':
         session_id = __name__
