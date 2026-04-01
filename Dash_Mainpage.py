@@ -131,15 +131,15 @@ def app_serve_layout():
             id='upload-load-spinner', className="upload-load-spinner"),
 
         # Display uploaded filename
-        html.Br(),
         html.Div(children=[
             dbc.ButtonGroup(children=[
-                dbc.Button("Delete File.", id="delete-file-button", disabled=True, style={"margin": "0px"}),
-                dbc.Button("Delete ALL Files.", id="delete-all-file-button", style={"margin": "0px"}),
-                dbc.Button("Stats.", id="print-cache-stats-button", style={"margin": "0px"}),
+                dbc.Button("Delete File", id="delete-file-button", disabled=True, color="secondary"),
+                dbc.Button("Delete ALL Files", id="delete-all-file-button", color="secondary"),
+                dbc.Button("Stats", id="print-cache-stats-button", color="secondary"),
             ]),
         ],
             className="d-grid gap-2",
+            style={"alignItems": "center"},
         ),
         html.Br(),
         # Responsive grid of page buttons
@@ -147,7 +147,7 @@ def app_serve_layout():
             id="page-button-grid",
             children=[
                 dbc.ButtonGroup(children=[
-                    dbc.Button(title, href=f"/{title.lower()}", style={"margin": "0px"}, id={"type": "disable-btn", "index": title}, disabled=True)
+                    dbc.Button(title, href=f"/{title.lower()}", color="dark", id={"type": "disable-btn", "index": title}, disabled=True)
                     for title, desc in page_info.items()
                 ]),
             ],
