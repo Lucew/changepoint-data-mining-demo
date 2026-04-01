@@ -14,37 +14,13 @@ import numpy as np
 from scipy.stats import rankdata as scipyrank
 
 import util.load_data as utl
-from GLOBALS import *
 import util.cache_registry as ucache
-
+import util.styles as ustyles
+from GLOBALS import *
 
 # register the page to our application
 register_page(__name__, path="/correlate")
 logger = logging.getLogger("frontend-logger")
-
-
-styles = {
-        'pre': {
-            'border': 'thin lightgrey solid',
-            'overflowX': 'scroll',
-            'color': 'black'
-        },
-        'div': {
-            'padding': '.3rem',
-            'width': '80%',
-            'margin': 'auto',
-            'boxShadow': 'dimgrey 4px 4px 2px',
-            'border-radius': '10px',
-            'backgroundColor': 'white',
-            'marginTop': '1rem',
-        },
-        'dropdown': {
-            'margin': 'auto',
-            'width': '100%',
-            'border-radius': '10px',
-            'color': 'black'
-        }
-    }
 
 
 @ucache.lru_cache(maxsize=CACHE_SIZE)
@@ -431,7 +407,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                     style={'fontSize': 40},
                     id='header'),
         ],
-            style=styles['div']
+            style=ustyles.div_styles['div']
         ),
         html.Div(children=[
             dbc.Container(children=[
@@ -444,7 +420,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                             value=signal_names[0],
                             multi=False,
                             clearable=False,
-                            style=styles['dropdown'],
+                            style=ustyles.div_styles['dropdown'] | {"width": "100%"},
                         ),
                     ],
                         style={"width": "100%"}
@@ -457,7 +433,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                             value=min(window_sizes),
                             multi=False,
                             clearable=False,
-                            style=styles['dropdown'],
+                            style=ustyles.div_styles['dropdown'] | {"width": "100%"},
                         ),
                     ],
                         style={"width": "100%"}
@@ -470,7 +446,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                             value="Spearman Correlation",
                             multi=False,
                             clearable=False,
-                            style=styles['dropdown'],
+                            style=ustyles.div_styles['dropdown'] | {"width": "100%"},
                         ),
                     ],
                         style={"width": "100%"}
@@ -484,7 +460,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                 figure={},
             ),
         ],
-            style=styles['div']
+            style=ustyles.div_styles['div']
         ),
         html.Div(children=[
             dcc.Graph(
@@ -497,10 +473,10 @@ def layout(session_id: str, folder_name: str, **kwargs):
                 value='Component',
                 multi=False,
                 clearable=False,
-                style={key: val if key != 'width' else '50%' for key, val in styles['dropdown'].items()},
+                style=ustyles.div_styles['dropdown'],
             )
         ],
-            style=styles['div'],
+            style=ustyles.div_styles['div'],
             hidden=True,
             id='hidden-graph1-container'
         ),
@@ -511,7 +487,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                 figure={}
             ),
         ],
-            style=styles['div'],
+            style=ustyles.div_styles['div'],
             hidden=True,
             id='hidden-graph2-container'
         ),
@@ -522,7 +498,7 @@ def layout(session_id: str, folder_name: str, **kwargs):
                 figure={}
             ),
         ],
-            style=styles['div'],
+            style=ustyles.div_styles['div'],
             hidden=True,
             id='hidden-graph3-container'
         ),
@@ -534,8 +510,8 @@ def layout(session_id: str, folder_name: str, **kwargs):
                         bar and then select points in the graph.
 
                     """),
-            html.Pre(id='selected-data', style=styles['pre'])],
-            style=styles['div'],
+            html.Pre(id='selected-data', style=ustyles.div_styles['pre'])],
+            style=ustyles.div_styles['div'],
             hidden=True,
             id='selected-data-container'
         )
