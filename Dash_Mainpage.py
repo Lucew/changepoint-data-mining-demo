@@ -23,6 +23,9 @@ import util.process_kks as ukks
 from GLOBALS import *
 
 
+# set a better plotly theme
+plotly.io.templates.default = "seaborn"
+
 # Page descriptions
 page_info = {
     "Heatmap": "This page allows to analyze CP scores of multiple signals as heatmap.",
