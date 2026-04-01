@@ -4,7 +4,8 @@ import time
 import inspect
 
 import plotly
-from dash import Dash, dcc, html, Input, Output, callback, State, register_page
+from dash import dcc, html, Input, Output, callback, State, register_page, Patch
+from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
@@ -18,6 +19,7 @@ import util.load_data as utl
 import util.cache_registry as ucache
 import util.styles as ustyles
 import util.process_kks as ukks
+import util.draw_heatmap as uheat
 from GLOBALS import *
 
 # register the page to our application
@@ -61,7 +63,12 @@ def get_score_information(session_id: str, folder_name: str):
     Input('signal-select', 'value'),
     Input('color-select', 'value'),
     Input('window-select', 'value'),
-    Input('method-select', 'value'),)
+    Input('method-select', 'value'),
+    running=[
+        (Output("correlate-events-basic-interactions-loading", "display"), "show", "auto"),
+    ],
+    prevent_initial_call=True,
+)
 def display_selected_data(session_id: str, folder_name: str,
                           selected_data, selected_signal, selected_color_choice, window_size, selection_method):
 
@@ -417,6 +424,33 @@ def display_score_onclick(session_id: str, folder_name: str, click_data, selecte
     return fig, False, [html.H2('Scores'), f"Selected {selected_signal} & {cmpsig_name}"]
 
 
+@callback(
+    Output(component_id='hidden-graph2', component_property="figure", allow_duplicate=True),
+    Output(component_id='hidden-graph3', component_property="figure", allow_duplicate=True),
+    Output(component_id='hidden-graph2', component_property="clickData"),
+    Output(component_id='hidden-graph3', component_property="clickData"),
+    Input(component_id='hidden-graph2', component_property="clickData"),
+    Input(component_id='hidden-graph3', component_property="clickData"),
+    prevent_initial_call=True)
+def click_in_residuals(click_data1, click_data2):
+
+    # check whether we selected nothing
+    if click_data1 is None and click_data2 is None:
+        raise PreventUpdate
+
+    # get the signals we selected
+    if click_data1 is not None:
+        selected_time = [point['x'] for point in click_data1["points"]][0]
+    else:
+        selected_time = [point['x'] for point in click_data2["points"]][0]
+
+    # make some patches
+    figure_patch = Patch()
+    del figure_patch['layout']['shapes'][1]
+    figure_patch['layout']['shapes'].append(uheat.make_vline(selected_time))
+    return figure_patch, figure_patch, None, None
+
+
 def layout(session_id: str, folder_name: str, **kwargs):
 
     # get the start time
@@ -498,17 +532,29 @@ def layout(session_id: str, folder_name: str, **kwargs):
             ],
                 style={"width": "100%"},
             ),
-            dcc.Graph(
-                id='basic-interactions',
-                figure={},
+            dcc.Loading(children=[
+                dcc.Graph(
+                    id='basic-interactions',
+                    figure={},
+                ),
+            ],
+                type="circle",
+                overlay_style={"visibility": "visible", "filter": "blur(2px)"},
+                id="correlate-events-basic-interactions-loading",
             ),
         ],
             style=ustyles.div_styles['div']
         ),
         html.Div(children=[
-            dcc.Graph(
-                id='hidden-graph1',
-                figure={}
+            dcc.Loading(children=[
+                dcc.Graph(
+                    id='hidden-graph1',
+                    figure={}
+                ),
+            ],
+                type="circle",
+                overlay_style={"visibility": "visible", "filter": "blur(2px)"},
+                id="correlate-events-scatter-signals-loading",
             ),
             dcc.Dropdown(
                 id="color-select",
