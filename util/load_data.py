@@ -5,6 +5,7 @@ import shutil
 import time
 import json
 import inspect
+import sys
 
 import pandas as pd
 import pandas.api.typing as pdtypes
@@ -15,7 +16,7 @@ from GLOBALS import *
 
 
 @ucache.lru_cache(CACHE_SIZE)
-def load_data(folder_path: str, mock_signals: typing.Optional[bool] = None, reduce_count: typing.Optional[int] = None) -> tuple[dict[str: pdtypes.DataFrameGroupBy], dict[str: pd.DataFrame], tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
+def load_data(folder_path: str, load_resampled_signals: bool = False, mock_signals: typing.Optional[bool] = None, reduce_count: typing.Optional[int] = None) -> tuple[dict[str: pdtypes.DataFrameGroupBy], dict[str: pd.DataFrame], tuple[int], typing.Optional[pd.DataFrame], typing.Optional[pd.DataFrame], pdtypes.DataFrameGroupBy, pd.DataFrame]:
     start = time.perf_counter()
 
     # get the logger
@@ -49,7 +50,7 @@ def load_data(folder_path: str, mock_signals: typing.Optional[bool] = None, redu
         score_files_set = set(os.path.splitext(os.path.split(file)[-1])[0] for file in score_files)
 
         # file the signal files
-        signal_files = [file for file in signal_files if os.path.splitext(os.path.split(file)[-1])[0].split('_')[1] in score_files_set]
+        signal_files = [file for file in signal_files if os.path.splitext(os.path.split(file)[-1])[0].split('_', 1)[1] in score_files_set]
 
     # load the scoring dataframes into dictionary
     scores = {os.path.splitext(filename)[0]: pd.read_parquet(os.path.join(folder_path, filename)).drop(columns="signal") for filename in tqdm(score_files, desc='Loading the Scores')}
@@ -95,7 +96,6 @@ def load_data(folder_path: str, mock_signals: typing.Optional[bool] = None, redu
     # get the raw signals (currently just the score data)
     if mock_signals:
         signals = {}
-        indexer = None
         raw_dataframe_list = []
         for name, score in scores.items():
 
@@ -123,9 +123,12 @@ def load_data(folder_path: str, mock_signals: typing.Optional[bool] = None, redu
             raw_signals = raw_signals[raw_signals['sensor'].isin(score_files_set)]
 
         # load the resampled data
-        signals: dict[str: pd.DataFrame]
-        signals = {os.path.splitext(filename)[0].split("_")[1]: pd.read_parquet(os.path.join(folder_path, filename))
-                   for filename in tqdm(signal_files, desc='Loading the Signals')}
+        signals = None
+        if load_resampled_signals:
+            signals: dict[str: pd.DataFrame]
+            signals = {os.path.splitext(filename)[0].split("_", 1)[1]: pd.read_parquet(os.path.join(folder_path, filename))
+                       for filename in tqdm(signal_files, desc='Loading the Signals')}
+
 
     # make the zscore normalization by group
     # https://pandas.pydata.org/pandas-docs/stable/user_guide/groupby.html#transformation
@@ -136,6 +139,7 @@ def load_data(folder_path: str, mock_signals: typing.Optional[bool] = None, redu
     raw_signals = raw_signals.sort_index(ascending=True)
     raw_signals_grouped = raw_signals.groupby("sensor", sort=False)
 
+    # log our success
     logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Loaded data files into cache from disk {time.perf_counter() - start:0.2f} s.")
     return scores, signals, window_sizes, anomaly_scores, distances, raw_signals_grouped, raw_signal_correlations
 
