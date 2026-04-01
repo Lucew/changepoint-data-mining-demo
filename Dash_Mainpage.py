@@ -131,17 +131,27 @@ def app_serve_layout():
             id='upload-load-spinner', className="upload-load-spinner"),
 
         # Display uploaded filename
-        dbc.Button("Delete File.", id="delete-file-button", disabled=True, style={"margin": "1px"}),
-        dbc.Button("Delete ALL Files.", id="delete-all-file-button", style={"margin": "1px"}),
-        dbc.Button("Stats.", id="print-cache-stats-button", style={"margin": "1px"}),
-
+        html.Br(),
+        html.Div(children=[
+            dbc.ButtonGroup(children=[
+                dbc.Button("Delete File.", id="delete-file-button", disabled=True, style={"margin": "0px"}),
+                dbc.Button("Delete ALL Files.", id="delete-all-file-button", style={"margin": "0px"}),
+                dbc.Button("Stats.", id="print-cache-stats-button", style={"margin": "0px"}),
+            ]),
+        ],
+            className="d-grid gap-2",
+        ),
+        html.Br(),
         # Responsive grid of page buttons
         html.Div(
             id="page-button-grid",
             children=[
-                dbc.Button(title, href=f"/{title.lower()}", style={"margin": "1px"}, id={"type": "disable-btn", "index": title}, disabled=True)
-                for title, desc in page_info.items()
+                dbc.ButtonGroup(children=[
+                    dbc.Button(title, href=f"/{title.lower()}", style={"margin": "0px"}, id={"type": "disable-btn", "index": title}, disabled=True)
+                    for title, desc in page_info.items()
+                ]),
             ],
+            className="d-grid gap-2",
         ),
         html.Br(),
         html.Div([
@@ -167,15 +177,17 @@ def app_serve_layout():
         html.Br(),
         html.Br(),
         # Collapsible container (hidden initially)
-        dbc.Accordion(
-            children=[
-                dbc.AccordionItem(title=f"{title} Description", children=desc, style={"marginTop": "0px"})
-                for i, (title, desc) in enumerate(page_info.items(), start=1)
-            ],
-            style={"display": "none"},
-            start_collapsed=True,
-            id="page-link-container",
-        ),
+        html.Div(children=[
+            dbc.Accordion(
+                children=[
+                    dbc.AccordionItem(title=f"{title} Description", children=html.Div(children=[desc], style={"overflowWrap": "anywhere", "maxWidth": "100%", "whiteSpace": "normal",}))
+                    for i, (title, desc) in enumerate(page_info.items(), start=1)
+                ],
+                style={"display": "none"},
+                start_collapsed=True,
+                id="page-link-container",
+            ),
+        ]),
 
     ],
         style={"maxWidth": "25rem"}, fluid=True
