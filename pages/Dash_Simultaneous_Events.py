@@ -3,6 +3,7 @@ import logging
 import time
 import inspect
 
+import plotly
 from dash import Dash, dcc, html, Input, Output, callback, State, register_page
 import dash_bootstrap_components as dbc
 import plotly.express as px
@@ -16,6 +17,7 @@ from scipy.stats import rankdata as scipyrank
 import util.load_data as utl
 import util.cache_registry as ucache
 import util.styles as ustyles
+import util.process_kks as ukks
 from GLOBALS import *
 
 # register the page to our application
@@ -88,15 +90,26 @@ def display_selected_data(session_id: str, folder_name: str,
     # get the correlation values for the selected signal
     corr_vals = signal_correlation.loc[names, selected_signal].abs().to_numpy()
 
+    # extract the information from the names
+    info_dict = ukks.get_info_from_list(names, unique=False)
+    blocks = info_dict["block"]
+    turbines = info_dict["turbine"]
+    components = info_dict["component"]
+    measurements = info_dict["measurement"]
+    types = info_dict["type"]
+
     # make a figure
     # get_rand(len(cp_similarities))
     fig = px.scatter(pd.DataFrame({'Signal Corr.': corr_vals,
                                    'cp_similarity': cp_similarities,
                                    'name': names,
-                                   'Block+Turbine': [col[1:3] for col in names],
-                                   'Block': [col[1:2] for col in names],
-                                   'Component': [col[3:6] for col in names],
-                                   'Turbine': [col[2:3] for col in names]}),
+                                   'Block+Turbine': [f"{block}{turbine}" for block, turbine in zip(blocks, turbines)],
+                                   'Block': blocks,
+                                   'Component': components,
+                                   'Measurement': measurements,
+                                   'Turbine': [f'Steam [{turbine}]' if turbine == '0'
+                                         else f'Gas [{turbine}]'
+                                         for turbine in turbines]}),
                      x='cp_similarity',
                      y='Signal Corr.',
                      color=selected_color_choice,
@@ -108,6 +121,12 @@ def display_selected_data(session_id: str, folder_name: str,
     # fig.update_layout(barmode='group')
     fig.update_layout(transition_duration=250)
     fig.update_layout(xaxis_title="Change Point Similarity", yaxis_title="Complete Signal Correlation")
+
+    # creates a gap between the scatter plot and the marginal
+    fig.update_layout(
+        yaxis=dict(domain=[0.00, 0.72]),  # main scatter
+        yaxis2=dict(domain=[0.8, 1.00])  # top marginal
+    )
     return "\n".join(res_str), fig, False, True, True, False
 
 
@@ -226,16 +245,48 @@ def get_rand(length: int):
     return np.random.uniform(-1, 1, length)
 
 
+def fuse_plotly_express_plots(fig1: plotly.graph_objects.Figure, fig2: plotly.graph_objects.Figure) -> plotly.graph_objects.Figure:
+    """
+    Plotly express does not allow secondary x-axis, but has the option for auto rendering.
+    With this function, we get the auto rendering (mostly WebGL) and the secondary axis as the rendering option
+    is chosen per trace.
+    :param fig1: The figure for the first y-axis
+    :param fig2: The figure for the second y-axis
+    :return: Fused Figure
+    """
+
+    # make a figure with secondary y-axis
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # get the color palette
+    palette = list(fig1.layout.colorway) if fig1.layout.colorway else list(px.colors.qualitative.Plotly)
+    offset = 0
+
+    for tr in fig1.data:
+        color = palette[offset % len(palette)]
+        tr.update(
+            line=dict(color=color),
+            marker=dict(color=color),
+        )
+        offset += 1
+        fig.add_trace(tr, secondary_y=False)
+
+    for tr in fig2.data:
+        color = palette[offset % len(palette)]
+        tr.update(
+            line=dict(color=color),
+            marker=dict(color=color),
+        )
+        offset += 1
+        fig.add_trace(tr, secondary_y=True)
+    return fig
+
+
 def make_signal_figure(signal_df, score_df, signal_name):
-
-    # Create a figure with secondary y-axis
-    fig = px.line(signal_df, y='value', markers=True, color='sensor')
-
-    # make the score plot
-    fig.add_trace(
-        go.Scatter(x=score_df.index, y=score_df['value'], name="Change Score"),
-    )
-
+    fig1 = px.line(signal_df, y='value', markers=True, color='sensor')
+    fig2 = px.line(score_df, y='value', color="window")
+    fig2.update_traces(name='Change Score', showlegend=True)
+    fig = fuse_plotly_express_plots(fig1, fig2)
     # update the layout
     fig.update_traces(marker_size=5)
     # fig.update_layout(transition_duration=500)
@@ -294,22 +345,17 @@ def display_signal_onclick(session_id: str, folder_name: str, click_data, select
     # get the name of the clicked signal
     cmpsig_name = click_data['points'][0]['customdata'][0]
 
-    # make a figure
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-
     # make the signal plot
     signal_df = raw_signals_grouped.get_group(selected_signal)
-    fig.add_trace(
-        go.Scatter(x=signal_df.index, y=signal_df['value'], name=selected_signal),
-        secondary_y=False,
-    )
+    fig1 = px.line(signal_df, y='value', color='sensor')
 
     # make the other signal plot
     cmp_signal_df = raw_signals_grouped.get_group(cmpsig_name)
-    fig.add_trace(
-        go.Scatter(x=cmp_signal_df.index, y=cmp_signal_df['value'], name=cmpsig_name),
-        secondary_y=True,
-    )
+    fig2 = px.line(cmp_signal_df, y='value', color='sensor')
+
+    # fuse the figures
+    fig = fuse_plotly_express_plots(fig1, fig2)
+    fig.update_layout(hovermode="x unified")
 
     # make the lines
     fig.add_vrect(x0=start, x1=end, annotation_text="selection")
@@ -351,22 +397,19 @@ def display_score_onclick(session_id: str, folder_name: str, click_data, selecte
     # get the name of the clicked signal
     cmpsig_name = click_data['points'][0]['customdata'][0]
 
-    # make a figure
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-
     # make the signal plot
     signal_df = scores[selected_signal].get_group(window_size)
-    fig.add_trace(
-        go.Scatter(x=signal_df.index, y=signal_df['value'], name=selected_signal),
-        secondary_y=False,
-    )
+    fig1 = px.line(signal_df, y='value', color="window")
+    fig1.update_traces(name=selected_signal, showlegend=True)
 
     # make the other signal plot
     cmp_signal_df = scores[cmpsig_name].get_group(window_size)
-    fig.add_trace(
-        go.Scatter(x=cmp_signal_df.index, y=cmp_signal_df['value'], name=cmpsig_name),
-        secondary_y=True,
-    )
+    fig2 = px.line(cmp_signal_df, y='value', color="window")
+    fig2.update_traces(name=cmpsig_name, showlegend=True)
+
+    # fuse the figures
+    fig = fuse_plotly_express_plots(fig1, fig2)
+    fig.update_layout(hovermode="x unified")
 
     # make the lines
     fig.add_vrect(x0=start, x1=end, annotation_text="selection")
