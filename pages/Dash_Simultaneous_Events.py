@@ -55,21 +55,15 @@ def get_score_information(session_id: str, folder_name: str):
     scores, _, _, _, _, _, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
     # get the minimum, maximum, mean and std of each score
-    value_dict = {'name': [], 'ws': [], 'min': [], 'max': [], 'mean': [], 'median': [], 'std':[]}
-    for name, grouped_df in tqdm(scores.items(), desc='Compute the scoring statistics'):
-        aggregations = grouped_df['value'].agg(['min', 'max', 'mean', 'median', 'std'])
-        for ws in grouped_df.groups.keys():
-            value_dict['name'].append(name)
-            value_dict['ws'].append(ws)
-            value_dict['min'].append(aggregations.loc[ws, "min"])
-            value_dict['max'].append(aggregations.loc[ws, "max"])
-            value_dict['mean'].append(aggregations.loc[ws, "mean"])
-            value_dict['median'].append(aggregations.loc[ws, "median"])
-            value_dict['std'].append(aggregations.loc[ws, "std"])
-
-    # transform the values into a dataframe and set the index
-    score_information = pd.DataFrame(value_dict)
-    score_information.set_index(['name', 'ws'], inplace=True)
+    # new optimized way to get the information
+    score_information = pd.concat(
+        {
+            name: grouped_df["value"].agg(["min", "max", "mean", "std"])
+            for name, grouped_df in tqdm(scores.items(), desc='Compute the scoring statistics')
+        },
+        names=["name"],
+    )
+    score_information.index.names = ["name", "ws"]
 
     # return the result
     logger.info(f"[{__name__}] Preprocessed data in {time.perf_counter() - start:0.2f} s.")
@@ -136,7 +130,7 @@ def display_selected_data(session_id: str, folder_name: str,
 
     # make the histogram stacked
     # fig.update_layout(barmode='group')
-    fig.update_layout(transition_duration=500)
+    fig.update_layout(transition_duration=250)
     fig.update_layout(xaxis_title="Change Point Similarity", yaxis_title="Complete Signal Correlation")
     return "\n".join(res_str), fig, False, True, True, False
 
@@ -188,14 +182,14 @@ def find_others(session_id: str, folder_name: str, start, end, selected_signal, 
     if selection_method == 'Pearson Correlation':  # find the signal with the highest correlation in this time
         # process the original signal
         signal_mean = np.mean(signal)
-        signal -= signal_mean
+        signal = signal - signal_mean
         signal_std = np.sqrt(np.sum(np.square(signal)))
 
         # compute the mean of all signals
         signal_means = np.mean(other_array, axis=1)
 
         # subtract the mean from the array
-        other_array -= signal_means[:, None]
+        other_array = other_array - signal_means[:, None]
 
         # compute the standard deviations of the mean
         other_std = np.sqrt(np.sum(np.square(other_array), axis=1)) + np.finfo('float').eps
@@ -259,23 +253,16 @@ def get_rand(length: int):
 def make_signal_figure(signal_df, score_df, signal_name):
 
     # Create a figure with secondary y-axis
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-
-    # make the signal plot
-    fig.add_trace(
-        go.Scatter(x=signal_df.index, y=signal_df['value'], name=signal_name, mode='lines+markers'),
-        secondary_y=False,
-    )
+    fig = px.line(signal_df, y='value', markers=True, color='sensor')
 
     # make the score plot
     fig.add_trace(
         go.Scatter(x=score_df.index, y=score_df['value'], name="Change Score"),
-        secondary_y=True,
     )
 
     # update the layout
     fig.update_traces(marker_size=5)
-    fig.update_layout(transition_duration=500)
+    # fig.update_layout(transition_duration=500)
     fig.update_layout(dragmode='select')
     return fig
 
