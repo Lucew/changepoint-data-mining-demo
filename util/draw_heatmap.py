@@ -7,10 +7,12 @@ import time
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.subplots as ps
 import dash
 
 import util.load_data as utl
 import util.styles as usty
+import util.prepocessing as uprep
 from GLOBALS import *
 
 
@@ -112,9 +114,14 @@ def shape_update_patch(shape: dict, figure_shape_patch: dash.Patch, shape_idx: i
     return shape_y0, shape_y1
 
 
-def create_raw_signal_figure(session_id: str, folder_name: str, shape: dict, shape_y0: int, shape_y1: int, signal_names: list[str]):
+def create_raw_signal_figure(session_id: str, folder_name: str, shape: dict, shape_y0: int, shape_y1: int, signal_names: list[str], window_size: int = None, normalization_window_size: int = None):
+    start = time.perf_counter()
+
+    # get the logger
+    logger = logging.getLogger("frontend-logger")
+
     # load the raw signals
-    _, _, _, _, _, signals, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
+    scores, _, _, _, _, signals, _ = utl.load_data(os.path.join(DATA_FOLDER, session_id, folder_name))
 
     # get all the columns we need to select (depending on where we start, one of the shapes is the larger one)
     column_start, column_end = sorted((shape_y0, shape_y1))
@@ -141,7 +148,66 @@ def create_raw_signal_figure(session_id: str, folder_name: str, shape: dict, sha
     )
     fig.update_layout(shapes=[]) # important otherwise our patches to the shape property won't work
 
+    # add the scores if a window size is defined
+    if window_size is not None:
+
+        # get the regression results
+        uprep.preprocess_regression_results(session_id, folder_name)
+
+        # get the score for the defined window size
+        score_df = pd.concat((scores[name].get_group(window_size)[["value"]].rename(columns={'value': name}).loc[time_start:time_end] for name in names), axis=1)
+
+        # normalize the score
+        score_df = uprep.normalization(score_df, window_length=normalization_window_size)
+
+        # make a figure that contains the traces we can then add to the signal figure
+        scorefig = px.line(score_df.melt(var_name='sensor', value_name='value', ignore_index=False), y='value', color='sensor')
+        scorefig.update_traces(line=dict(dash="dash"))
+        scorefig.update_traces(
+            legendgroup="cs",
+            legendgrouptitle_text="Change Scores",
+            visible = 'legendonly'
+        )
+
+        # udpdate the signal figure to have a signal group
+        fig.update_traces(
+            legendgroup="sig",
+            legendgrouptitle_text="Raw Signals",
+        )
+
+        # update the signal figure with the scores
+        fig = fuse_signal_and_score_fig(fig, scorefig)
+
+    # log the time it took to create the plot
+    logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Created new raw signal plot in {time.perf_counter() - start:0.2f} seconds.")
     return fig, names, time_start, time_end
+
+
+def fuse_signal_and_score_fig(sigfig: go.Figure, scorefig: go.Figure) -> go.Figure:
+    """
+    This function fuses the signal and scores into one figure with secondary axis.
+    """
+
+    # make a figure with secondary y-axis
+    fig = ps.make_subplots(specs=[[{"secondary_y": True}]])
+
+    # get the color palette
+    palette = list(sigfig.layout.colorway) if sigfig.layout.colorway else list(px.colors.qualitative.Plotly)
+
+    for tr in sigfig.data:
+        fig.add_trace(tr, secondary_y=False)
+
+    for idx, tr in enumerate(scorefig.data):
+        color = palette[idx]
+        tr.update(
+            line=dict(color=color),
+            marker=dict(color=color),
+        )
+        fig.add_trace(tr, secondary_y=True)
+
+    # make the individual signals selectable
+    fig.update_layout(legend=dict(groupclick="toggleitem"))
+    return fig
 
 
 def create_empty_figure_with_text(text: str):
@@ -158,7 +224,7 @@ def create_empty_figure_with_text(text: str):
     return fig
 
 
-def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: list[str], figure_shapes: dict[str:list], raw_signal_figure_ids: list[str], relayout_data: dict, signal_graph_type: str):
+def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: list[str], figure_shapes: dict[str:list], raw_signal_figure_ids: list[str], relayout_data: dict, signal_graph_type: str, window_size: int = None):
 
     # get the logger
     logger = logging.getLogger("frontend-logger")
@@ -208,7 +274,7 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
     # draw the figure
     else:
         # make the figure
-        fig, names, time_start, time_end = create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names)
+        fig, names, time_start, time_end = create_raw_signal_figure(session_id, folder_name, shape, shape_y0, shape_y1, signal_names, window_size)
 
     # create graph object
     graph_id = {"type": signal_graph_type, "index": currtime}
