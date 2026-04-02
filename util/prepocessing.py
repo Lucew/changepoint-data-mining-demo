@@ -38,7 +38,7 @@ def normalization(df: pd.DataFrame, window_length: int = None) -> pd.DataFrame:
     return df
 
 
-@ucache.lru_cache(maxsize=1)
+@ucache.lru_cache(maxsize=CACHE_SIZE)
 def preprocess_regression_results(session_id: str, folder_name: str) -> (pd.DataFrame, pdtypes.DataFrameGroupBy,
                                                                          pd.Series):
     start = time.perf_counter()
