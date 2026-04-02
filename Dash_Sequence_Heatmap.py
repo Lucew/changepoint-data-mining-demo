@@ -12,7 +12,7 @@ import functools
 import glob
 from tqdm import tqdm
 import multiprocessing as mp
-from preprocessing.process import aggregate_ts
+from util.process import aggregate_ts
 import math
 import fbpca
 import bisect
@@ -97,7 +97,7 @@ def process_df(df: pd.DataFrame, target_length: int) -> pd.DataFrame:
     return df
 
 
-def load_data(number_eigenvectors: int = 5, folder_name: str = "sequences_UnknownSequences") -> (pd.DataFrame, dict[int: pd.DataFrame]):
+def load_data(number_eigenvectors: int = 5, folder_name: str = "sequences_output") -> (pd.DataFrame, dict[int: pd.DataFrame]):
 
     # find all the right files
     files = glob.glob(os.path.join("data", folder_name, "*.csv"))
@@ -192,7 +192,7 @@ def construct_heatmap(eig_index1: int = 0, eig_index2: int = 1, eig_index3: int 
 
     # construct the matrix that will be plotted in the heatmap
     values = np.empty((len(sequence_indices.keys()), max_idx + 1, 3))
-    values.fill(np.NaN)
+    values.fill(np.nan)
     name_indices = {name: idx for idx, name in enumerate(sequence_indices.keys())}
     for name, eigensequence in eigensequences.items():
         name_index = name_indices[name]
@@ -434,7 +434,7 @@ if __name__ == '__main__':
                                 dbc.Card(children=[
                                     dbc.CardHeader(["Ignored Columns"]),
                                     dbc.CardBody(children=[
-                                        html.Div(children=[], id='drag-ignore-container', style={"min-height": "10px"})
+                                        html.Div(children=[], id='drag-ignore-container', style={"minHeight": "10px"})
                                     ]),
                                 ]),
                             ]),
@@ -626,7 +626,7 @@ if __name__ == '__main__':
 
                 # check whether we only want one figure, then we need descriptive names
                 if one_graph:
-                    name = f'Selection {idx+1}: {name}'
+                    name = f'Selection {idx+1} (Seq. {start_idx}): {name}'
 
                 # save the computed signal into the dict
                 if result is not None:
