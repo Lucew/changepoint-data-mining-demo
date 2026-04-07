@@ -297,6 +297,21 @@ def add_click_line(click_data, figure_ids: list[str], figure_shapes: dict[str: l
     return uheat.draw_lines_on_click(click_data, figure_ids, figure_shapes, line_keywords={stringify_id(heatmap_id): {'color': 'white', 'width': 3, 'layer': 'above'}})
 
 
+@callback(
+    Output("mainpage-download-option-field", "data"),
+    Input("signal-selection-download-button", "n_clicks"),
+    State("session-id", "data"),
+    State("folder-name", "data"),
+    State('perplexity-slider', 'value'),
+    State('correlation-slider', 'value'),
+    prevent_initial_call=True,
+)
+def func(n_clicks, session_id: str, folder_name: str, perplexity: int, correlation_threshold: float):
+    # get the scatter df
+    bokeh_df, _, _ = utsne.create_tsne(session_id, folder_name, perplexity, correlation_threshold)
+    return dcc.send_data_frame(bokeh_df.to_parquet, "scatter.parquet")
+
+
 """@callback(
     Input("figure-shape-store", "data"),
 )
@@ -401,7 +416,9 @@ def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str
                     id='header'),
             "⚠ Your file does not contain anomaly scores" if anomaly_scores is None else "",
             dbc.Accordion(children=[
-                dbc.AccordionItem(children=[html.Pre(text, className='pre-expl')], title="Explanation", )
+                dbc.AccordionItem(children=[
+                    html.Pre(text, className='pre-expl'),
+                    dbc.Button("Download", id='signal-selection-download-button'),], title="Explanation", ),
             ],
                 start_collapsed=True,
             ),
@@ -494,11 +511,11 @@ def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str
                         dcc.Loading(children=[
                             dbc.Accordion(children=[
                                 dbc.AccordionItem(children=[
-                                dcc.Graph(
-                                    id='scatter-graph3d',
-                                    figure=uscat.create_scatter_3d(session_id, folder_name, perplexity=_global_default_perplexity, correlation_threshold=_global_corr_thresh, selected_components=_global_component_types, selected_measurements=_global_measurement_types),
-                                    style={'width': f'40vw', 'height': '30vw'},
-                                ),
+                                    dcc.Graph(
+                                        id='scatter-graph3d',
+                                        figure=uscat.create_scatter_3d(session_id, folder_name, perplexity=_global_default_perplexity, correlation_threshold=_global_corr_thresh, selected_components=_global_component_types, selected_measurements=_global_measurement_types),
+                                        style={'width': f'40vw', 'height': '30vw'},
+                                    ),
                                 ],
                                     title="3D Scatter Plot",
                                 ),

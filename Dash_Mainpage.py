@@ -118,6 +118,9 @@ def app_serve_layout():
         dcc.Store(data=__folder_name, id='folder-name', storage_type='session'),
         dcc.Store(data=__upload_status, id='upload-status', storage_type='session'),
 
+        # make a download field
+        dcc.Download(id="mainpage-download-option-field"),
+
         # Upload component
         dcc.Loading(
             html.Div([
