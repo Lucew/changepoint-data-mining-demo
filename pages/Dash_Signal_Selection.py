@@ -307,6 +307,9 @@ def add_click_line(click_data, figure_ids: list[str], figure_shapes: dict[str: l
     prevent_initial_call=True,
 )
 def func(n_clicks, session_id: str, folder_name: str, perplexity: int, correlation_threshold: float):
+    if n_clicks is None:
+        raise PreventUpdate
+
     # get the scatter df
     bokeh_df, _, _ = utsne.create_tsne(session_id, folder_name, perplexity, correlation_threshold)
     return dcc.send_data_frame(bokeh_df.to_parquet, "scatter.parquet")
