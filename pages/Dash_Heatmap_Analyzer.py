@@ -597,7 +597,7 @@ def modify_shapes(session_id: str, folder_name: str, window_size: int, signal_na
 
     # make the processing depending on the event
     if is_new_shape:
-        figure_shape_patch, raw_signal_plot_patch_list, raw_signal_plot_collection_patch, figure_shapes = uheat.create_new_raw_signal_plot(session_id, folder_name, signal_names, figure_shapes, raw_signal_figure_ids, relayout_data, on_click_type, window_size)
+        figure_shape_patch, raw_signal_plot_patch_list, raw_signal_plot_collection_patch, figure_shapes = uheat.create_new_raw_signal_plot(session_id, folder_name, signal_names, figure_shapes, raw_signal_figure_ids, relayout_data, on_click_type, int(window_size))
     elif is_shape_redraw:
         figure_shape_patch, raw_signal_plot_patch_list, raw_signal_plot_collection_patch, figure_shapes = uheat.move_score_shape(session_id, folder_name, signal_names, figure_shapes, raw_signal_figure_ids, relayout_data)
     else:
