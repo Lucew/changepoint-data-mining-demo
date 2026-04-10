@@ -125,7 +125,10 @@ def standard_anomaly_scoring(residuals: pd.Series):
     :return:
     """
     # residuals = (residuals - residuals.min()) / (residuals.max() - residuals.min())
-    residuals = (residuals - residuals.median()) / (residuals.quantile(0.75) - residuals.quantile(0.25))
+    quantile_diff = (residuals.quantile(0.75) - residuals.quantile(0.25))
+    if quantile_diff < np.finfo(float).eps:
+        quantile_diff = 1
+    residuals = (residuals - residuals.median()) / quantile_diff
     return residuals.max()
 
 
