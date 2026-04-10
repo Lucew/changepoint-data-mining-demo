@@ -28,6 +28,7 @@ plotly.io.templates.default = "seaborn"
 
 # Page descriptions
 page_info = {
+    "Signal": "This page allows to analyze CP scores and Signals directly.",
     "Heatmap": "This page allows to analyze CP scores of multiple signals as heatmap.",
     "Scatter": "This page allows to analyze CP correlation in scatter plots with anomaly scores.",
     "Correlate": "This page gives you export options and reporting tools.",
@@ -140,9 +141,11 @@ def app_serve_layout():
         html.Div(children=[
             dbc.ButtonGroup(children=[
                 dbc.Button("Delete File", id="delete-file-button", disabled=True, color="secondary"),
-                dbc.Button("Delete ALL Files", id="delete-all-file-button", color="secondary"),
+                dbc.Button("Delete ALL", id="delete-all-file-button", color="secondary"),
                 dbc.Button("Stats", id="print-cache-stats-button", color="secondary"),
-            ]),
+            ],
+                size="sm",
+            ),
         ],
             className="d-grid gap-2",
             style={"alignItems": "center"},
@@ -155,7 +158,9 @@ def app_serve_layout():
                 dbc.ButtonGroup(children=[
                     dbc.Button(title, href=f"/{title.lower()}", color="dark", id={"type": "disable-btn", "index": title}, disabled=True)
                     for title, desc in page_info.items()
-                ]),
+                ],
+                    size="sm",
+                ),
             ],
             className="d-grid gap-2",
         ),

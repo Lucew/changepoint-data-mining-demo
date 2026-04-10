@@ -192,9 +192,10 @@ def fuse_signal_and_score_fig(sigfig: go.Figure, scorefig: go.Figure) -> go.Figu
     fig = ps.make_subplots(specs=[[{"secondary_y": True}]])
 
     # get the color palette
-    palette = list(sigfig.layout.colorway) if sigfig.layout.colorway else list(px.colors.qualitative.Plotly)
-
+    # palette = list(sigfig.layout.colorway) if sigfig.layout.colorway else list(px.colors.qualitative.Plotly)
+    palette = list()
     for tr in sigfig.data:
+        palette.append(tr['line']['color'])
         fig.add_trace(tr, secondary_y=False)
 
     for idx, tr in enumerate(scorefig.data):
