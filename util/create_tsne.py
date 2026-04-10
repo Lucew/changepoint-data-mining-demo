@@ -21,7 +21,7 @@ def get_random_seed():
 
 
 def get_default_corr_threshold():
-    return 0.90
+    return 0.6
 
 
 @ucache.lru_cache(maxsize=CACHE_SIZE)
@@ -70,7 +70,8 @@ def window_size_correlation(session_id: str, folder_name: str, window_size: int)
 
     # get the columns where there is nan
     not_null_columns = score_corr.columns[~score_corr.isnull().any(axis=0)]
-    score_corr = score_corr.loc[not_null_columns, not_null_columns]
+    score_corr[score_corr.isnull()] = 0
+    # score_corr = score_corr.loc[not_null_columns, not_null_columns]
 
     # transform correlation into distance
     score_corr = 10_000 - score_corr * 1000
