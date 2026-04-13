@@ -68,7 +68,7 @@ def table_type(df_column):
         return 'any'
 
 
-@ucache.lru_cache(maxsize=1)
+@ucache.lru_cache(maxsize=CACHE_SIZE)
 def get_anomaly_data(session_id: str, folder_name: str, scoring_fn, k_neighbors: int, correlation_threshold: float) -> (pd.DataFrame, dict[str: pd.DataFrame], dict[str: pd.DataFrame]):
     start = time.perf_counter()
 
