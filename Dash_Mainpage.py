@@ -80,7 +80,7 @@ def init():
     session_id = f'uuid_{uuid.uuid4()}'
     if APPLICATION_LEVEL == Level.DEBUG or APPLICATION_LEVEL == Level.STANDALONE:
         session_id = __name__
-    elif APPLICATION_LEVEL == Level.DEMO and os.name == 'nt':
+    elif APPLICATION_LEVEL == Level.DEMO:
         session_id = __name__
 
     # check whether we are running a demo (create symlink)
