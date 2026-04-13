@@ -50,6 +50,7 @@ __port_arg = __parser.add_argument('--port', '-p', default=8050, type=int, help=
 __file_arg = __parser.add_argument('--folder', '-f', default=r'C:\Users\lucas\Data\CP_Anomaly\output_api', help='Set the application folder.')
 __parser.add_argument('--maxnum', '-mn', default=MAX_SIGNALS, type=int, help='The maximum number of signals that are loaded.')
 __parser.add_argument('--mocksig', '-ms', default=MOCK_SIGNALS, type=bool, help='Whether to load signals or mock them from the scores.')
+__parser.add_argument('--reduce-step', '-rs', default=1, type=int, help='Whether to reduce memory usage.')
 __args = __parser.parse_args()
 
 
@@ -76,6 +77,8 @@ if not os.path.isdir(DATA_FOLDER):
 # get the port
 APP_PORT = __args.port
 
+# get the data reduction
+REDUCE_MEMORY_STEP = __args.reduce_step
 
 # deactivate the flask logger if we have any low application level
 # https://community.plotly.com/t/suppress-dash-server-posts-to-console/8855/2

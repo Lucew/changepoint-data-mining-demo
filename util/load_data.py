@@ -71,6 +71,10 @@ def load_data(folder_path: str, load_resampled_signals: bool = False, mock_signa
     # group the scores by the window sizes and set the timestamp as index
     scores = {name: score.set_index("timestamp").sort_index().groupby("window", sort=False) for name, score in tqdm(scores.items(), desc='Grouping Scores')}
 
+    # reduce the memory footprint
+    if REDUCE_MEMORY_STEP > 1:
+        scores = {name: df.apply(lambda g: g[g.index.floor("min").minute % 2 == 0]).copy() for name, df in tqdm(scores.items(), desc='Reducing Data')}
+
     # load the anomaly scores if they are available
     anomaly_score_path = os.path.join(folder_path, 'anomaly_scores.parquet')
     anomaly_scores = None
@@ -137,6 +141,8 @@ def load_data(folder_path: str, load_resampled_signals: bool = False, mock_signa
 
     # sort the signals and create the groups
     raw_signals = raw_signals.sort_index(ascending=True)
+    if REDUCE_MEMORY_STEP > 1:
+        raw_signals =  raw_signals[raw_signals.index.floor("min").minute % REDUCE_MEMORY_STEP == 0].copy()
     raw_signals_grouped = raw_signals.groupby("sensor", sort=False)
 
     # log our success
