@@ -53,11 +53,15 @@ def load_data(folder_path: str, load_resampled_signals: bool = False, mock_signa
         signal_files = [file for file in signal_files if os.path.splitext(os.path.split(file)[-1])[0].split('_', 1)[1] in score_files_set]
 
     # load the scoring dataframes into dictionary
-    scores = {os.path.splitext(filename)[0]: pd.read_parquet(os.path.join(folder_path, filename)).drop(columns="signal") for filename in tqdm(score_files, desc='Loading the Scores')}
+    scores = {os.path.splitext(filename)[0]: pd.read_parquet(os.path.join(folder_path, filename)).drop(columns="signal").set_index("timestamp") for filename in tqdm(score_files, desc='Loading the Scores')}
+
+    # reduce the memory footprint
+    if REDUCE_MEMORY_STEP > 1:
+        scores = {name: df[df.index.floor("min").minute % 2 == 0].copy() for name, df in tqdm(scores.items(), desc='Reducing Data')}
 
     # go through the scores signals and restrict to maximum starting point and minimum ending point
-    max_start = max(score["timestamp"].min() for score in scores.values())
-    min_end = min(score["timestamp"].max() for score in scores.values())
+    max_start = max(score.index.min() for score in scores.values())
+    min_end = min(score.index.max() for score in scores.values())
 
     # get the window sizes
     window_sizes: dict[str: pd.DataFrame] = {tuple(sorted(int(ele) for ele in df["window"].unique())) for df in scores.values()}
@@ -69,11 +73,7 @@ def load_data(folder_path: str, load_resampled_signals: bool = False, mock_signa
     # scores = {name: score.loc[score["timestamp"].between(max_start, min_end)] for name, score in scores.items()}
 
     # group the scores by the window sizes and set the timestamp as index
-    scores = {name: score.set_index("timestamp").sort_index().groupby("window", sort=False) for name, score in tqdm(scores.items(), desc='Grouping Scores')}
-
-    # reduce the memory footprint
-    if REDUCE_MEMORY_STEP > 1:
-        scores = {name: df.apply(lambda g: g[g.index.floor("min").minute % 2 == 0]).copy() for name, df in tqdm(scores.items(), desc='Reducing Data')}
+    scores = {name: score.sort_index().groupby("window", sort=False) for name, score in tqdm(scores.items(), desc='Grouping Scores')}
 
     # load the anomaly scores if they are available
     anomaly_score_path = os.path.join(folder_path, 'anomaly_scores.parquet')
