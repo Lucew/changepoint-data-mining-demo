@@ -47,10 +47,15 @@ class Level(enum.Enum):
 __parser = argparse.ArgumentParser(description='Dash Startup Script.')
 __mode_arg = __parser.add_argument('--mode', '-m', default='debug', help=f'Set the application mode. Possible values: {list(ele.name for ele in Level)}')
 __port_arg = __parser.add_argument('--port', '-p', default=8050, type=int, help='Set the application port.')
-__file_arg = __parser.add_argument('--folder', '-f', default=r'C:\Users\lucas\Data\CP_Anomaly\output_api', help='Set the application folder.')
+# __file_arg = __parser.add_argument('--folder', '-f', default=r'C:\Users\lucas\Data\CP_Anomaly\output_api', help='Set the application folder.')
+# __file_arg = __parser.add_argument('--folder', '-f', default=r'C:\Users\lucas\Data\CP_Anomaly\own_server_processed\milan\boat', help='Set the application folder.')
+__file_arg = __parser.add_argument('--folder', '-f', default=r'/tmp-data-folder', help='Set the application folder.')
 __parser.add_argument('--maxnum', '-mn', default=MAX_SIGNALS, type=int, help='The maximum number of signals that are loaded.')
 __parser.add_argument('--mocksig', '-ms', default=MOCK_SIGNALS, type=bool, help='Whether to load signals or mock them from the scores.')
-__parser.add_argument('--reduce-step', '-rs', default=1, type=int, help='Whether to reduce memory usage.')
+__parser.add_argument('--reduce-step', '-rs', default=3, type=int, help='Whether to reduce memory usage.')
+__parser.add_argument("--bind", type=str, default=False)
+__parser.add_argument("--workers", type=str, default=False)
+__parser.add_argument("app", nargs='?')
 __args = __parser.parse_args()
 
 

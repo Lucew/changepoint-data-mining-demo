@@ -58,6 +58,7 @@ app = dash.Dash(__name__, use_pages=PAGED, external_stylesheets=external_stylesh
                 suppress_callback_exceptions=True,
                 )
 app.title = "Changepoint"
+server = app.server
 
 # prepare the folder
 def get_first_subfolder(path: str) -> tuple[str, str] | tuple[None, None]:
@@ -82,6 +83,10 @@ def init():
         session_id = __name__
     elif APPLICATION_LEVEL == Level.DEMO:
         session_id = __name__
+
+    # catch gunicorn error
+    if __name__ == 'Dash_Mainpage':
+        session_id = "__main__"
 
     # check whether we are running a demo (create symlink)
     if APPLICATION_LEVEL == Level.DEMO and os.name != 'nt' and False:
