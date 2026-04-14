@@ -55,6 +55,7 @@ __parser.add_argument('--mocksig', '-ms', default=MOCK_SIGNALS, type=bool, help=
 __parser.add_argument('--reduce-step', '-rs', default=3, type=int, help='Whether to reduce memory usage.')
 __parser.add_argument("--bind", type=str, default=False)
 __parser.add_argument("--workers", type=str, default=False)
+__parser.add_argument("--timeout", type=int, default=False)
 __parser.add_argument("app", nargs='?')
 __args = __parser.parse_args()
 
