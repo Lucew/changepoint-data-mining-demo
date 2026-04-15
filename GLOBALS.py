@@ -57,11 +57,7 @@ __parser.add_argument('--reduce-step', '-rs', default=3, type=int, help='Whether
 # args necessary to use gunicorn
 # https://github.com/benoitc/gunicorn/issues/2231
 # https://github.com/benoitc/gunicorn/issues/2231#issuecomment-745123873
-__parser.add_argument("--bind", type=str, default=None)
-__parser.add_argument("--workers", type=str, default=None)
-__parser.add_argument("--timeout", type=int, default=None)
-__parser.add_argument("--keyfile", type=str, default=None)
-__parser.add_argument("--certfile", type=str, default=None)
+__parser.add_argument("--config", type=str, default=None)
 __parser.add_argument("app", nargs='?')
 __args = __parser.parse_args()
 
