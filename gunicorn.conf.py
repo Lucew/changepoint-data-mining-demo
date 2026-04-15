@@ -5,6 +5,7 @@ import ssl
 bind = "0.0.0.0:8000"
 certfile = "Cert.pem"
 keyfile = "privateKey.pem"
+timeout = 300
 
 # optional
 workers = 1
