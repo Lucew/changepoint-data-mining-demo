@@ -53,9 +53,15 @@ __file_arg = __parser.add_argument('--folder', '-f', default=r'/tmp-data-folder'
 __parser.add_argument('--maxnum', '-mn', default=MAX_SIGNALS, type=int, help='The maximum number of signals that are loaded.')
 __parser.add_argument('--mocksig', '-ms', default=MOCK_SIGNALS, type=bool, help='Whether to load signals or mock them from the scores.')
 __parser.add_argument('--reduce-step', '-rs', default=3, type=int, help='Whether to reduce memory usage.')
-__parser.add_argument("--bind", type=str, default=False)
-__parser.add_argument("--workers", type=str, default=False)
-__parser.add_argument("--timeout", type=int, default=False)
+
+# args necessary to use gunicorn
+# https://github.com/benoitc/gunicorn/issues/2231
+# https://github.com/benoitc/gunicorn/issues/2231#issuecomment-745123873
+__parser.add_argument("--bind", type=str, default=None)
+__parser.add_argument("--workers", type=str, default=None)
+__parser.add_argument("--timeout", type=int, default=None)
+__parser.add_argument("--keyfile", type=str, default=None)
+__parser.add_argument("--certfile", type=str, default=None)
 __parser.add_argument("app", nargs='?')
 __args = __parser.parse_args()
 
