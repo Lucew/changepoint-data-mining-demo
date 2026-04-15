@@ -2,7 +2,7 @@
 import os
 import ssl
 
-bind = "0.0.0.0:443"
+bind = "0.0.0.0:8000"
 certfile = "Cert.pem"
 keyfile = "privateKey.pem"
 
