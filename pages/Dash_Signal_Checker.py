@@ -226,9 +226,10 @@ def create_signal_graph(session_id: str, folder_name: str, signals_ids: list[str
 
     # create the raw signal figure
     # check whether we want to draw too many signals per shape
-    if len(signal_names) > 3*RAW_SIGNAL_PLOT_MAXIMUM_NUMBER:
+    allowed_number = 3*RAW_SIGNAL_PLOT_MAXIMUM_NUMBER
+    if len(signal_names) > allowed_number:
         logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many signals: ({len(signal_names)=}).")
-        fig = uheat.create_empty_figure_with_text(f"Too many signals ({len(signal_names)=} > {RAW_SIGNAL_PLOT_MAXIMUM_NUMBER}) in this selection.")
+        fig = uheat.create_empty_figure_with_text(f"Too many signals ({len(signal_names)=} > {allowed_number}) in this selection.")
     # create the figure from the newly selected data
     else:
         shape = {'x0': timestamps[0], 'x1': timestamps[1]}

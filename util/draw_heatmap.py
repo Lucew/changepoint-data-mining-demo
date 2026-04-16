@@ -269,7 +269,7 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
 
     # check if we want to draw too many shapes
     elif signal_numer > RAW_SIGNAL_PLOT_MAXIMUM_NUMBER:
-        text_notification = f"Too many signals ({signal_numer > RAW_SIGNAL_PLOT_MAXIMUM_NUMBER}) in this selection"
+        text_notification = f"Too many signals ({signal_numer} > {RAW_SIGNAL_PLOT_MAXIMUM_NUMBER}) in this selection"
         fig = create_empty_figure_with_text(str(text_notification))
         logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many signals: ({shape_y0=}, {shape_y1=}).")
 

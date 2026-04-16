@@ -398,7 +398,7 @@ def layout(session_id: str, folder_name: str, selection_names: dict[str:dict[str
         dcc.Store(id="figure-shape-store", data=dict()),  # to store all the shapes we have drawn
         dbc.Alert(
             [
-                html.H4("Too many selection. Please delete some shapes!"),
+                html.H4("Too many selections. Please delete some shapes!"),
                 html.Hr(),
                 "Delete shapes using the [del] key.",
                 html.Br(),
