@@ -37,7 +37,7 @@ heatmap_id = {"type": on_click_type, "index": heatmap_index}
 
 @ucache.lru_cache(maxsize=CACHE_SIZE)
 def process_signals(session_id: str, folder_name: str, window_size: str = None, signal_list: tuple[str] = None,
-                    normalization_window_size: int = None) -> tuple[pd.DataFrame, int, tuple[int]]:
+                    normalization_window_size: int = None, subtract_mean: bool = False) -> tuple[pd.DataFrame, int, tuple[int]]:
     start = time.perf_counter()
     assert signal_list is None or len(signal_list) > 0, 'You have to select signals.'
 
@@ -62,8 +62,9 @@ def process_signals(session_id: str, folder_name: str, window_size: str = None, 
     score_df = prep.normalization(score_df, window_length=normalization_window_size)
 
     # make the reference signal subtraction
-    score_df = score_df.sub(score_df.mean(axis=1), axis="index").abs()
-    # TODO: do not absolute value the negative scores
+    if subtract_mean:
+        score_df = score_df.sub(score_df.mean(axis=1), axis="index").abs()
+        # TODO: do not absolute value the negative scores
 
     # transform the index into a pandas timestamp
     score_df.index = pd.to_datetime(score_df.index)
