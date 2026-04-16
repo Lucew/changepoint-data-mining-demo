@@ -30,8 +30,8 @@ plotly.io.templates.default = "seaborn"
 page_info = {
     "Signal": "This page allows to analyze CP scores and Signals directly.",
     "Heatmap": "This page allows to analyze CP scores of multiple signals as heatmap.",
-    "Scatter": "This page allows to analyze CP correlation in scatter plots with anomaly scores.",
     "Correlate": "This page gives you export options and reporting tools.",
+    "Scatter": "This page allows to analyze CP correlation in scatter plots with anomaly scores.",
     "Anomaly": "This page allows you to scan through the anomalies",
 }
 
