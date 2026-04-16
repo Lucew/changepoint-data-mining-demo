@@ -261,14 +261,15 @@ def create_new_raw_signal_plot(session_id: str, folder_name: str, signal_names: 
     time_start, time_end = pd.Timestamp(0), pd.Timestamp(0)
 
     # check if we have too many shapes already
+    signal_numer = abs(shape_y1 - shape_y0) + 1
     if len(shapes) > MAX_PLOTLY_SHAPES-3:
         text_notification = '<a href="https://plotly.com/python/performance/">Too many shapes</a>. Please delete some. Otherwise, rendering will fail.'
         fig = create_empty_figure_with_text(str(text_notification))
         logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many shapes: {len(shapes)=}.")
 
     # check if we want to draw too many shapes
-    elif abs(shape_y1-shape_y0)+1 > RAW_SIGNAL_PLOT_MAXIMUM_NUMBER:
-        text_notification = "Too many signals in this selection"
+    elif signal_numer > RAW_SIGNAL_PLOT_MAXIMUM_NUMBER:
+        text_notification = f"Too many signals ({signal_numer > RAW_SIGNAL_PLOT_MAXIMUM_NUMBER}) in this selection"
         fig = create_empty_figure_with_text(str(text_notification))
         logger.info(f"[{__name__}][{inspect.stack()[0][3]}] Too many signals: ({shape_y0=}, {shape_y1=}).")
 
