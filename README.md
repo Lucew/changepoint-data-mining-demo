@@ -35,3 +35,16 @@ Run the project with:
 `python Dash_Mainpage.py`
 
 We also provide a [container file](./Dockerfile) that can be used to run the application with podman or docker.
+
+## Attributions
+
+This repository includes processed data derived from:
+
+**Siltanen, Pekka; Uriondo Arrue, Zigor.**
+*Sensor data from three different fishing ships for a period of one month*.
+Zenodo. DOI: [10.5281/zenodo.3563390](https://doi.org/10.5281/zenodo.3563390)
+
+Original dataset license: **[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)**
+
+The version included here has been processed and modified for use with this application.
+Please attribute the original authors and source when redistributing or reusing this data.
