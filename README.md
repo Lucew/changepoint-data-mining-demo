@@ -33,3 +33,5 @@ Before running the project:
 
 Run the project with:
 `python Dash_Mainpage.py`
+
+We also provide a [container file](./Dockerfile) that can be used to run the application with podman or docker.
