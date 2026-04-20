@@ -57,7 +57,7 @@ def load_data(folder_path: str, load_resampled_signals: bool = False, mock_signa
 
     # reduce the memory footprint
     if REDUCE_MEMORY_STEP > 1:
-        scores = {name: df[df.index.floor("min").minute % 2 == 0].copy() for name, df in tqdm(scores.items(), desc='Reducing Data')}
+        scores = {name: df[df.index.floor("min").minute % REDUCE_MEMORY_STEP == 0].copy() for name, df in tqdm(scores.items(), desc='Reducing Data')}
 
     # go through the scores signals and restrict to maximum starting point and minimum ending point
     max_start = max(score.index.min() for score in scores.values())
