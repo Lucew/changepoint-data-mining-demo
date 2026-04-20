@@ -26,8 +26,8 @@ def parse_kks_tag(tag: str) -> [str, str, str, str, str]:
         raise ValueError(f"We could not parse {tag=}. Something with block and turbine is off.")
 
     # get the turbine and block
-    turbine = tag_groups[0][0]
-    block = tag_groups[0][1]
+    block = tag_groups[0][0]
+    turbine = tag_groups[0][1]
 
     # get the component
     if tag_groups[1].isnumeric() or not tag_groups[2].isnumeric():
