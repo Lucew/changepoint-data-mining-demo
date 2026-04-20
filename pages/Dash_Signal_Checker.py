@@ -38,7 +38,7 @@ def get_initial_figures(session_id: str, folder_name: str, target_window_size: i
 
     # get the initial window size
     if target_window_size is None:
-        target_window_size = min(window_sizes)
+        target_window_size = max(window_sizes)
     elif target_window_size not in window_sizes:
         raise ValueError(f"{target_window_size=} must be in {window_sizes=}.")
 
