@@ -1,0 +1,2 @@
+mockup-data/** filter=lfs diff=lfs merge=lfs -text
+mockup-data/__main__/test/*.parquet filter=lfs diff=lfs merge=lfs -text
