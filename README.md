@@ -4,6 +4,8 @@ This repository contains an interactive demonstrator that allows to explore mass
 sensor data using Change Point Correlation. See the details on the prototype in our publication. The demonstrator
 is currently hosted in this [live demo](https://changepoint.cs.fau.de).
 
+See this [video](https://www.fau.tv/clip/id/63306) for short introduction and some of the interactions.
+
 ## Short Explanation
 Change Point Correlation (CPC) computes a similarity between time series that corresponds to simultaneous events. Instead of
 comparing the raw time series, it uses methods from Change Point Detection to compute Change Scores and then compares 
