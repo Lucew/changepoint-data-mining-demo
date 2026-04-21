@@ -25,6 +25,18 @@ def layout(session_id: str, folder_name: str, **kwargs):
                     "display": "flex", "justifyContent": "center", "alignItems": "center", "fontSize": "Large"
                 }),
             html.Br(),
-            html.Br()],
+            html.Div(
+                children=[
+                    "For further details, watch our introductory ",
+                    html.A("video", href="https://www.fau.tv/clip/id/63306", target="_blank"),
+                    " or visit the source ",
+                    html.A("code.", href="https://github.com/Lucew/changepoint-data-mining-demo", target="_blank"),
+                ],
+                style={
+                    "display": "flex", "justifyContent": "center", "alignItems": "center", "fontSize": "small", "whiteSpace": "pre",
+                }),
+            html.Br(),
+            html.Br()
+        ],
             style=ustyle.div_styles['div'] | {"marginTop": "auto", "width": "30%"})] ,
         style=style_update)
