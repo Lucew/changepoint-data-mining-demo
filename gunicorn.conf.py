@@ -8,7 +8,12 @@ keyfile = "privateKey.pem"
 timeout = 300
 
 # optional
-workers = 1
+workers = 4
+threads = 4
+
+# load the data on worker restart
+preload_app = True
+
 
 def ssl_context(conf, default_ssl_context_factory):
     password = os.environ["SSL_KEY_PASSWORD"]   # set this in the environment
