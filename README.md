@@ -14,11 +14,18 @@ Change Point Correlation (CPC) computes a similarity between time series that co
 comparing the raw time series, it uses methods from Change Point Detection to compute Change Scores and then compares 
 these scores. Very generally said: What changes together, belongs together.
 
-We use CPC and t-SNE to create a scatter plot, where each point corresponds to a signal and points that are close
+The following picture from the paper visually explains cpc:
+
+![visual-cpc](https://github.com/Lucew/changepoint-data-mining-demo/blob/master/assets/visual_explanation_cpc.png)
+
+We use CPC and t-SNE to create a scatter plot ([see here](https://dl.acm.org/doi/10.1145/3736733.3736742)), where each point corresponds to a signal and points that are close
 together change a similar times.
 
 See our publication for further details.
 
+
+
+[4] Tsuyoshi Idé and Keisuke Inoue. 2005. Knowledge discovery from heterogeneous dynamic systems using change-point correlations. In Proceedings of the 2005 SIAM international conference on data mining. SIAM, 571–575.
 ## Dataset
 The prototype was initially designed for large scale sensor data analysis for complex power plants. Unfortunately, this
 data comes with high confidentiality. To publicly present our prototype, we use a comparable
