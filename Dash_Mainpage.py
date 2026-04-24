@@ -98,12 +98,14 @@ def init():
     # check whether we found a subfolder
     if folder_name is None:
         folder_name = "not-available"
+    else:
+        utl.load_data(os.path.join(DATA_FOLDER, session_id,folder_name))
 
     file_name = "already-there"
     upload_status = "already-there"
     return session_id, folder_name, file_name, upload_status
 
-
+init()
 # create a function to make the layout for every call
 def app_serve_layout():
     """
