@@ -43,7 +43,7 @@ Before running the project:
 
 1) Clone the project using git-lfs to get access to all necessary files.
 
-2) Install the necessary dependencies (we recommend using a virtual Python environment) `pip install -r requirements.txt` or `uv pip install -re requirements.txt`
+2) Install the necessary dependencies (we recommend using a virtual Python environment) `pip install -r requirements.txt` or `uv pip install -r requirements.txt`
 
 Run the project with:
 `python Dash_Mainpage.py`
