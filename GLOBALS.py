@@ -18,7 +18,7 @@ MAX_SIGNALS = 800
 MOCK_SIGNALS = False
 
 # define the maximum number of signals for the heatmap
-MAX_HEATMAP_SIGNALS = 150
+MAX_HEATMAP_SIGNALS = 335
 MAX_HEATMAP_SELECT_SIGNALS = 40
 
 # define the maximum number of shape selections
