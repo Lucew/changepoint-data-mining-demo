@@ -33,11 +33,11 @@ but public [dataset](https://doi.org/10.5281/zenodo.3563389) that was recorded f
 are very thankful to the members of the [European DataBio Project](https://doi.org/10.1007/978-3-030-71069-9) for
 publishing the dataset under a permissive license. See the Attributions Section for details of the data license
 
-To download the data, you need to install [git-lfs](https://git-lfs.com/) before downloading the repository. The dataset will not be downloaded if you download the code from the GitHub UI or if you clone the repository without git-lfs.
+To download the data, you need to install [git-lfs](https://git-lfs.com/) before cloning the repository. The dataset will not be downloaded if you download the code from the GitHub UI or if you clone the repository without git-lfs.
 
 ## Running the Prototype
 The prototype comes in the form of an interactive web application. We already pre-processed the sensor data and computed
-the CPC similarity matrix. `Dash_Mainpage.py` is the main entrypoint into the application. 
+the CPC similarity matrix. `Dash_Mainpage.py` is the main entry point into the application. 
 
 Before running the project:
 
